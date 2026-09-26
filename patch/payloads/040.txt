@@ -1,0 +1,11 @@
+, setSessionProviderResolverSharedsharedRemoremotimport { createProviderRouting } from "../provider-routing);
+const claudeMode = process.env.EVEN_CLAUDE_MODE || "remote"laudeMode === "remote" ? createRemoteClaudeProvider(emit)
+    : claudeMode === "shared" ? createSharedClaudeProvider(emit) :, codexProvider, claudeProvider };
+const providerRouting = createProviderRouting(providerRegistry);
+setSessionProviderResolver(getProvider), sessionId) {
+    return providerRouting.resolve(name, sessionId)) providerRouting.remember(session.id, resolvedProvider, providerRouting.remember(result.sessionId, result.provider, sessionIdawait, req.body.toolUseId ?? req.body.request, sessionIdawait, req.body.toolUseId ?? req.body.request, sessionIdawaitelectedName, sessionId);
+    await selectedProvider.attach?.(sessionId);
+    const status = selectedelectedName, sessionId);
+    await selectedProvider.attach?.(sessionId);
+    const status = selected.filter(msg => selectedProvider.isReplayable?.(sessionId, msg) !== false, idCompatibility route: verify the existing daemon; never spawn a second oneawait codexClient.connect();
+    res.json({ started: true, shared: true, endpoint: codexClient.endpoint

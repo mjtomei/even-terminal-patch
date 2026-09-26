@@ -1,0 +1,51 @@
+'node:fs''node:os';
+import { join } from 'node:path';
+
+export const remoteId = value => typeof value === 'string' && /^cse_[A-Za-z0-9]+$/.test(value);
+export const fail = (message, statusCode = 409) =>essage), { statusCode });
+
+// Client side of native Remote Control. Deliberately has no create, resume,
+// worker-registration, credential-refresh, or session-termination operation.
+export class ClaudeRemoteClient {
+    constructor({ configDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), fetchImpl = fetch, timeoutMs = 15000 } = {}) {
+        this.configDir = configDir; this.fetch = fetchImpl; this.timeoutMs = timeoutMs;
+        this.controllers = new Set(); this.closed = false;
+    }
+    async request(path, body) {
+        if (this.closed) throw fail('Claude connection is closed', 503);
+        let auth;
+        try { authjoin(this.configDir, '.credentials.json'), 'utf8')).claudeAiOauth; }
+        catch { throw fail('Claude login is unavailable. Sign in through the normal Claude CLI.', 401); }
+        if (!auth?.accessToken || (auth.expiresAt && Date.now() >= auth.expiresAt)) {
+            throw fail('Claude login has expired. Let the normal Claude CLI refresh its login and try again.', 40    this.controllers.add(controller)this.timeoutMs);
+        let response, dataresponse = await this.fetch(`https://api.anthropic.com${path}`body ? 'POST' : 'GET', body: body ? JSON.stringify(body)    headers: { Authorization: `Bearer ${auth.accessToken}`, 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01' },
+     redirect: 'error'data = await response.json();
+        } catch {
+            throw fail(body ? 'Claude connection failed; delivery is unknown. The message was not automatically resent.' : 'Unable to read Claude Remote Control. Try again when the connection returns.', 503);
+        } finally { clearTimeout(timer); this.controllers.delete(controller); }const message = typeof data?.error?.message === 'string' ? data.error.message.replaceAll(auth.accessToken, '[redacted]').slice(0, 300) : 'Request rejected';
+            throw fail(`Claude Remote Control: ${message}`, response.statusdata;
+    }
+    async listsessions = [], seen = new Set();
+        let cursor;
+        for (let page = 0; page < 100; page++rylimit: '100', });request(`/v1/code/sessions?${query}`);
+    result.data)) throw fail('Unexpected Claude session-list response', 502push(...result.data);
+            cursor = result.next_cursor;
+            if (!cursor) return sessions;
+            if (seen.has(cursor)) throw fail('Claude session-list pagination did not advance', 502);
+            seen.add(cursorow fail('Claude session-list page limit reached', 502);
+    }
+    path(id) {
+        if (!remoteId(id)) throw fail('Invalid native Claude session ID', 400);
+        return `/v1/code/sessions/${id}`;
+    }
+    async getSession(irequest(this.path(id)result.response_shape ?? result.?.id !== id) throw fail('Unexpected Claude session metadata', 502events(id, { cursor, order = 'asc', limit = 200 } = {}) {
+        const querysort_order: order, limit: String(limit),request(`${this.path(id)}/events?${query}`)result.data)) throw fail('Unexpected Claude event response', 502;
+    }
+    // Exactly one POST. A timeout can occur after the existing owner receives
+    // the event, so retries must never be implicit.
+    send(id, payload) { return this.request(`${this.path(id)}/events`, { events: [{ payload }] }); }
+   closed = true;
+        for (const controller of this.controllers) controller.abort();
+        this.controllers.clear();
+    }
+}

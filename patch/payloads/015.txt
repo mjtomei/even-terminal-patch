@@ -1,0 +1,30 @@
+#!/usr/bin/env node
+// This hook only records observations. It never returns a permission decision.
+import { appendFileSync } from 'node:fs';
+import { join } from 'node:path''node:url';
+import { privateDir } from './files.js';
+
+export function recordHook(dir, input) {
+    if (!input || typeof input !== 'object') return;
+    // Subagents share settings; their events must not rebind or stop the main session.
+    if (input.agent_id) return;
+    const event = { recordedAt: Date.now() };
+    for (const key of ['hook_event_name', 'session_id', 'transcript_path', 'cwd', 'source', 'reason',
+        'model', 'session_title', 'tool_name', 'tool_use_id', 'notification_type', 'title', 'message']) {
+        if (typeof input[key] === 'string') event[key] = input[key].slice(0, 16000);
+    }
+    privateDir(dir);
+    appendFileSync(join(dir, 'hooks.jsonl'), JSON.stringify(event) + '\n', { mode: 0o600 });
+}
+
+if (process.argv[1] ===  {
+    try {
+        let input = '';
+chunk of process.stdin) {
+            input += chunk;
+            if (input.length > 16 * 1024 * 1024) throw new Error('Hook input too large');
+        }
+        recordHook(process.env.EVEN_CLAUDE_LAUNCH_DIR, JSON.parse(input));
+    } catch (error) { process.stderr.write(`[even-channel hook] ${error.message}\n`); }
+    // Observability must never block the user's Claude turn.
+}

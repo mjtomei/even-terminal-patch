@@ -1,0 +1,11 @@
+# Attribution
+
+This unofficial local installation is based on
+`0.8.1`, obtained from the official npm registry.
+The upstream README declares MIT and is retained unchanged as UPSTREAM-README.md.
+The inspected archive supplies no full license file or copyright notice; no
+upstream holder or year is asserted here.
+
+Upstream material and dependencies retain their respective terms. The Claude
+Agent SDK has its own terms. Dependency license files are installed by npm with
+their packages.

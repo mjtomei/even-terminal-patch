@@ -1,0 +1,99 @@
+import { randomUUIDimport { CodexTranscript } from "./transcript.js";
+import { mergeLocalRollout } from "./rollout, { reconnectDelayMs = 500, idleTtlMs = 180000, stateDirSTATE_DIR } = {}) {const entries = new Map();
+    let closed = false;
+    let generation = 0;
+    let retryTimer;
+    let retryDelay = reconnectDelayMs;
+    const missing = (error) => error)/i.test(error.message);
+    const fail = (message, statusCode = 409) =>essage), { statusCode });
+
+    function scheduleReconnect() {
+        if (closed || retryTimer || !entries.size) return;
+       retryTimer = undefined;s = await Promise.allSettled([...entries.keys()].map(id => attach(id)));
+            if (results.some(r => r.status === "rejected"ryDelay = Math.min(retryDelay * 2, 30000);
+                scheduleReconnect();
+            } else retryDelay = reconnectDelayMs;
+        }, retryDelay);
+        retryTimer.unref?.();
+    }
+
+    async function attach(id, refresh = false) {
+        if (closed) throw fail("Bridge is shutting down", 503);
+        if (typeof id !== "string" || !id) throw fail("Missing session ID", 400);
+        let entry = entries.get(id);
+        if (!entry) {emit, client, { transcript: new CodexTranscript(id, stateDir).setThreadId(id);
+            entry = { session, ready: false, promise: null, lastUsed: Date.now(), buffered: [] };
+            entries.set(id, entry);
+        }
+        entry.lastUsed = Date.now();
+        if (entry.promise) return entry.promise;
+        if (entry.ready && client.connected && !refresh) return entry.session;
+        const attachGeneration = generation;
+        entry.promise// Paginated resume can return an old persisted turn while the
+                // runtime is active. Full resume includes the in-memory turn.
+    : id });
+                await mergeLocalRollout(client, entry.session, result.threageneration !== attachGeneration || entries.get(id) !== entry || closed) throw fail("Connection changed while attaching; retry", 503);
+                entry.session.hydrate(result.thread, [...(result.thread.turns ?? [])].reverse());
+                entry.readfor (const [method, params] of entry.buffered.splice(0)) entry.session            return entry.session;
+            } catch (error) {
+                entry.readentry.buffered.length = 0;
+                if (missing(erroentries    entry.session    throw failid}`, 404scheduleReconnect();or;
+            } finally { entry.promise = null; }
+        })();
+        return entry.promise;
+    }
+id = params.threadId ?? params.thread?.id;
+        const entry = entries.get(id);
+        if (!entry) return; // Subscribe only to conversations selected in Even.entry.ready = false;
+            entry.new Error("Conversation unloaded; reconnecting"));
+            scheduleReconnecif (!entry.ready && method !entry.buffered.push([method, params]entry.sessionientries.get(params.threadId)?.session.handleServerRequest(igeneration++;entrieentry.ready = false;
+            entry.buffered.length = 0;
+            entry.    scheduleReconnect();
+    };
+
+    async function detach(id) {
+        const entry = entries.get(id);
+        if (!entry) return;
+        entries.delete(id);
+        entry.session.close();
+        if (client.connected) awaitid).catch(() => {});
+    }
+    const sweepfor (const [id, entry] of entries) {
+            if (!entry.promise && Date.now() - entry.lastUsed > idleTtlMs && !sessionHasClients(id)) void detach(id);
+        }
+    }, Math.min(idleTtlMs, 30000));
+    sweep.unref?.();
+iif (!i: cwd || });
+            id = thread.idn established subscription already tracks other devices. Replaying
+        // historical state here used to replace the glasses' live transcript.await attach(id);
+        if (session.canAcceptDirectInput === false) throw fail("This conversation does not accept direct input")[{ type: "text", text }];
+        const clientUserMessageId = randomUUID( && sessionclient.turnSteer({ threadId: id, expectedTurnId: session.currentTurnId, clientUserMessageId, input });
+            } catch (error) {
+                // Only a definite RPC rejection permits fallback. Network errors/timeouts
+                // may have accepted the text; never blindly send it twice.or.rpcCode == null || !/no active turn|not active|turn.*(?:mismatch|does not match|not found|completed)/i.test(error.message)) throw error;
+                await client.turnStart({ threadId: id, clientUserMessageId, input else {
+            // Codex 0.153 also steers if a different client started a turn meanwhile.
+            await client.turnStart({ threadId: id, clientUserMessageId, inpureturn activeSession(id) {
+        const entry = entries.get(id);
+        if (!entry?.ready || !client.connected) throw fail("Conversation is reconnecting; try again", 503);
+        entry.lastUsed = Date.now();
+        return entry.sessionattach,
+        detachasync return ().map(s })); },
+        async getSessionStatus(id) {id)); },
+        async getInfo()ounreturn { account: account ?? {}, model: "Codex", version: client.serverInfo?.userAgent ?? "Shared daemon"    },
+        async getHistory(id, limitsession = await attach(id);
+                await mergeLocalRollout(client    awaitid, limit, turns => session.transcript.merge(turns) session.transcript.history(limit);
+            } catch (errorhistory = entries.get(id)?.session.transcript.history(limihistory?.length) return history;o,
+        async interrupt(id) {await attachif (session.currentTurnId) await client.turnInterrupt(id, session.currentTurnId);
+        }(id, decision, requestId) { activeSession(id), requestId); }(id, answer, requestId) { activeSession(id).respondQuestion(answer, requestId); },
+        getStatus(intry = entries.get(id);
+            return entry ? { state: entry., connected: entry.ready && client.connected } : null;
+        },
+        initialMessages(id, includeText = true) { return entries.get(id)?.session.initialMessages(includeText) ?? []; },
+        isReplayable(id, msg) { return entries.get(id)?.session.isReplayable(msg) ?? !["permission_request", "user_question"].includes(msg.type); }() { return [...entries].map(([threadId, e]) => ({ threadId, status: e.session.status, connected: e.ready && client.connected })); },
+        closed = truelearInterval(sweep);
+    Settled([...entries.keys()].map(detach));
+            await client.close();
+        },
+    };
+}

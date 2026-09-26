@@ -1,0 +1,14 @@
+// Read-only recovery from a local Codex rollout into the bridge's own cache.
+// Skips malformed records; never modifies Codex's rollout or runtime.'node:fs''node:url';
+import { CodexTranscript } from '../dist/codex/transcript.js';
+import { parseRollout } from '../dist/codex/rollout.js';
+
+const path = process.argv[2];
+if (!path) throw new Error('Usage: node scripts/recover-transcript.mjs <rollout.jsonl> [bridge-state-directory]');
+const stateDir = process.argv[3] || fileURLToPath(new URL('../.state/', { id, turns, skipped } = parseRollout(readFileSync(path, 'utf8'));
+if (!id) throw new Error('No session ID found in the rollout');
+const transcript = new CodexTranscript(id, stateDir);
+transcript.merge(turns);
+transcript.flush();
+console.log(JSON.stringify({ threadId: id, turns: transcript.turns.length,
+    textItems: transcript.turns.reduce((sum, t) => sum + t.items.length, 0), skippedMalformedRecords: skipped }));

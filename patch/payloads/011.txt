@@ -1,0 +1,41 @@
+'../summarize.js';
+
+export const sequence = value => {
+    try { return /^\d+$/.test(String(value)) ? BigInt(value) : null; } catch { return null; }
+};
+export const textContent = content => typeof content === 'string' ? content : Array.isArray(content)
+    ? content.filter(b => b?.type === 'text' && typeof b.text === 'string').map(b => b.text).join('\n') : '';
+
+export class RemoteTranscript {
+    entries = new Map();
+    seen = new Map();
+    constructor(id, emit) { this.id = id; this.emit = emit; }
+    ingest(envelope, notifyevent = envelope.payload;
+        if (!event || event.parent_tool_use_id) return;
+        const key = `${event.type}:${event.uuid || envelope.event_id || envelope.sequence_num}`;
+        if (this.seen.has(key))en.add(key);
+        if (this.seen.size > 10000) this.seen.delete(this.seen.values().next().value);
+        const send = message => { if (notify) this.emit(message); };
+        if (['user', 'assistant'].includes(event.typeext = textContent(event.message?.content);
+            if (text.trim() && !event.isMeta && !event.isSyntheticntries.set(key, { role: event.typethis.entries.size > 1000) this.entries.delete(this.entries.keys().next().value);
+                send(event.type === 'user' ? { type: 'user_prompt', text } : { type: 'text_delta', text: `\n\n${text}`if (event.type === 'assistant' && Array.isArray(event.message?for (const block of event.message.content) if (block?.type === 'tool_use'nd({ type: 'tool_start', name: block.name, toolId: block.id,|| {}) else if (event.type === 'control_request' && event.request?.subtype === 'can_use_tool') {event.request_id, event.request);
+            send(this.permissionMessage(event.request_id, event.request));
+        } else if (['control_response', 'control_cancel_request'].includes(event.type)Id = event.response?.request_id || event.request_id; = this.pending.getif (request.delete    send({ type: 'permission_result', toolUseId: requestId, toolName: request.tool_name, decision: 'resolved', resolvedExternally: true, summary: 'Request answered in Claude' else if (event.type === 'result') {
+            send({ type: 'result', success: !event.is_error, text: event.result || '', sessionId: this.id, provider: 'claude',
+                costUsd: event.total_cost_usd || 0, turns: event.num_turns || 1, durationMs: event.duration_ms || 0ermissionMessage(requestId, request) {
+        if (request.tool_name === 'AskUserQuestion') return { type: 'user_question', toolUseId: requestId, questions: request.input?.questions || [] };
+        return { type: 'permission_request', toolUseId: requestId, toolName: request.tool_nrequest.tool_name, request.input || {}[{ text: 'Yes', key: 'allow' }, { text: 'No', key: 'deny' }] };
+    }
+    history(limit = 10) {
+        const groupedentry of this.entrieif (entry.role === 'assistant' && grouped.at(-1)?.role === 'assistant') grouped.at(-1).text += `\n\n${entry.text}`;
+            else grouped.push({ ...entrygrouped.slice(-Math.max(1, Math.min(Number(limit) || 10, 10)));
+    }
+    initialMessages() {
+        const entries = [...this.entries.values()];
+        const lastUser = entries.findLastIndex(entry => entry.role === 'user');[];
+        if (lastUser >= 0) messages.push({ type: 'user_prompt', text: entries[lastUser].text });
+        const text = entries.slice(lastUser + 1).filter(entry => entry.role === 'assistant').map(entry => entry.text).join('\n\n');
+        if (text) messages.push({ type: 'text_delta', text });
+        return messages;
+    }
+}

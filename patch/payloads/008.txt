@@ -1,0 +1,20 @@
+'node:fs''node:os';
+import { join } from 'node:path';
+import { remoteId } from './client.js';
+
+const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
+// Native records are advisory. Verify both registrations against the running
+// process's start identity before correlating a local UUID with a cloud ID.
+export function localBindings({ configDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'),
+    configPath = process.env.CLAUDE_CONFIG_DIR ? join(configDir, '.claude.json') : join(homedir(), '.claude.json'),
+    processStart = pid => process.platform === 'linux' ? readFileSync(`/proc/${pid}/stat`, 'utf8').split(/\) /).at(-1).split(' ')[19] : undefined } = {}) {
+    let placeholders;
+    try { placeholdersconfigPath, 'utf8')).replBridgePlaceholders || {}; } catch { return []; }
+    const bindings = [];
+    for (const [cloudId, record] of Object.entries(placeholders)) {
+        if (!remoteId(cloudId) || !Number.isInteger(record.pid) || record.pid <= 0 || typeof record.procStart !== 'string') continuesessionjoin(configDir, 'sessions', `${record.pid}.json`), 'utf8').pid !== record.pid || session.procStart !== record.procStart || processStart(record.pid) !== record.procStart || !uuid(session.sessionId)) continue;
+            bindings.push({ cloudId, localId: session.sessionId, pid: record.pid, procStart: record.procStart, cwd: session.cwd || '' });
+        } catch { /* Missing or stale local records never start an owner. */ }
+    }
+    return bindings;
+}

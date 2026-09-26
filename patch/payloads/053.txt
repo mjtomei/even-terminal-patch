@@ -1,0 +1,21 @@
+{
+  "name": "even-terminal-shared",
+  "version": "0.8.1-sharedShared Codex sessions and experimental native Claude Remote Control for Even Terminal",
+    "dist/",
+    "scripts/",
+    "test/",
+    "even-terminal",
+    "even-terminal-ngrok",
+    "README.md",
+    "UPSTREAM-README.md",
+    "PROVENANCE.md",
+    "NOTICE.mdnode bin/cli.js",
+    "test": "node --test test/*.test.js220.2.141",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "cors": "0.12.0",
+    "ws": "8.21.3",
+    "yargs": "18.1.0",
+    "zod": "4.5.4"
+  },
+  "private": true
+}

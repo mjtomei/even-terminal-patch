@@ -1,0 +1,17 @@
+// Keep routing metadata in diagnostics without logging query-string tokens,
+// request bodies, or conversation content.
+export function requestDetails(req) {
+    const path = (req.originalUrl || req.path || '').split('?')[0];
+    const requested = req.query?requested === undefined
+        ? '(omitted)'
+        : ['claude', 'codex'].includes(requested) ? requested : '[unsupported]';
+    const id = req.query?.sessionId || path.match(/\/sessions\/([^/]+)\/history$/)?.[1]id === undefined ? undefined
+        : typeof id === 'string' && (/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id) || /^cse_[A-Za-z0-9]+$/.test(id)) ? id : '[invalid]';
+    return { provider, sessionId };
+}
+
+export function errorDetails(error, token) {
+    const message = String(error?.message || 'Unknown error');
+    return { message: (token ? message.replaceAll(token, '[redacted]') : message).slice(0, 500),
+        rpcCode: error?.rpcCode };
+}

@@ -1,0 +1,41 @@
+import { readFile, realpath, stat } from "node:fs/promisejoin, sep } from "node:path";
+
+export function parseRollout(source) {
+    const turns = new Map();
+    let id;
+    let skipped = 0;
+    for (const line of sourceif (!line.trim()) continue;
+        let record;
+        try { record = JSON.parse(line); } catch { skipped++; continue; }
+        const p = record.payload;
+        if (record.type === "session_meta") { id = p?.id; continue; }
+        if (record.type !== "event_msg" || !p?.turn_id)isItem = p.type === "item_completed" && ["UserMessage", "AgentMessage"].includes(p.item?.type);
+        if (!isItem && p.type !== "task_started" && p.type !== "task_complete") continue;
+        let turn = turns.get(p.turn_id);
+        if (!turn) {
+            turn = { id: p.turn_id, startedAt: Date.parse(record.timestamp) / 1000, items: [] };
+            turns.set(turn.id, turnp.type === "task_started") turn.status = "inProgress";
+        else if (p.type === "task_complete") turn.status = "completed";onst item = p.item;
+            turn.items.push({ id: item.id, completetype: item.type === "UserMessage" ? "userMessage" : "agentMessage", content: item.content,
+                text: (item.content || []).filter(c => c.type === "Text").map(c => c.text || "").join("\n"}
+    }
+    return { id, turns: [...turns.values()], skipped };
+}
+
+export async function mergeLocalRollout(client, session, thread) {
+    if (thread) session.rolloutPath = thread.path;
+    // A remote daemon's path belongs to its host, not this bridge's machine.
+    if (!session.rolloutPath || !/^(unix:\/\/|ws\+unix:\/\/|\/)/.test(client.endpoint)) returnome = await realpath(process.env.CODEX_HOME || join(homedir(), ".codex"));
+        const path = await realpath(session.rolloutPath);
+        if (!["sessions", "archived_sessions"].some(dir => path.startsWith(join(home, dir) + sep))) return;stat(path);
+        const version = `${path}:${info.size}:${info.mtimeMs}`;
+        if (version === session.rolloutVersion)covered = parseRollout(await readFileif (recovered.id !== session.id) return;
+        session.transcript.merge(recovered.turns);
+        session.rolloutVersion = version;
+        if (recovered.skipped && !session.rolloutWarningrolloutWarningwarn(`[codex-history] Skipped ${recovered.skipped} malformed rollout record(s); recovered valid text for ${session.id}`);
+        }
+    } catch {
+        // Optional local fallback. The daemon and live cache remain usable if
+        // the rollout is unavailable, moves, or belongs to another Codex home.
+    }
+}

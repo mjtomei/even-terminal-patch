@@ -1,0 +1,4 @@
+type = ;
+    if (type === "active") {
+        return thread.status.activeFlags?.some(f => ff ? "awaiting" : "busyaitingOnApproval" || ttype)hread?.turns?.some(t => t.status === "inProgress") ? "busy" : "idle";
+}

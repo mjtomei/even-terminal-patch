@@ -1,0 +1,340 @@
+{
+  "baseline_version": "0.8.1",
+  "output_files": 65,
+  "copy_bytes": 171202,
+  "insert_bytes": 242156,
+  "operation_counts": {
+    "insert": 1233,
+    "copy": 1378
+  },
+  "literal_exact_match_check_bytes": 24,
+  "literal_exact_match_check": "passed",
+  "scope": "Byte reconstruction and exact matches only; not a proof of independent authorship or legal clearance.",
+  "files": [
+    {
+      "path": ".gitignore",
+      "copy_bytes": 0,
+      "insert_bytes": 38
+    },
+    {
+      "path": "NOTICE.md",
+      "copy_bytes": 29,
+      "insert_bytes": 486
+    },
+    {
+      "path": "PROVENANCE.md",
+      "copy_bytes": 83,
+      "insert_bytes": 791
+    },
+    {
+      "path": "README.md",
+      "copy_bytes": 29,
+      "insert_bytes": 3497
+    },
+    {
+      "path": "UPSTREAM-README.md",
+      "copy_bytes": 9830,
+      "insert_bytes": 0
+    },
+    {
+      "path": "bin/claude-channel.js",
+      "copy_bytes": 0,
+      "insert_bytes": 193
+    },
+    {
+      "path": "bin/cli.js",
+      "copy_bytes": 1661,
+      "insert_bytes": 3962
+    },
+    {
+      "path": "dist/claude/provider.js",
+      "copy_bytes": 8849,
+      "insert_bytes": 1185
+    },
+    {
+      "path": "dist/claude/remote/bindings.js",
+      "copy_bytes": 169,
+      "insert_bytes": 1544
+    },
+    {
+      "path": "dist/claude/remote/client.js",
+      "copy_bytes": 985,
+      "insert_bytes": 3574
+    },
+    {
+      "path": "dist/claude/remote/provider.js",
+      "copy_bytes": 2377,
+      "insert_bytes": 12282
+    },
+    {
+      "path": "dist/claude/remote/transcript.js",
+      "copy_bytes": 792,
+      "insert_bytes": 3501
+    },
+    {
+      "path": "dist/claude/session.js",
+      "copy_bytes": 27413,
+      "insert_bytes": 0
+    },
+    {
+      "path": "dist/claude/shared/channel.js",
+      "copy_bytes": 2161,
+      "insert_bytes": 14045
+    },
+    {
+      "path": "dist/claude/shared/files.js",
+      "copy_bytes": 714,
+      "insert_bytes": 3706
+    },
+    {
+      "path": "dist/claude/shared/hook.js",
+      "copy_bytes": 88,
+      "insert_bytes": 1346
+    },
+    {
+      "path": "dist/claude/shared/launcher.js",
+      "copy_bytes": 179,
+      "insert_bytes": 3719
+    },
+    {
+      "path": "dist/claude/shared/provider.js",
+      "copy_bytes": 1458,
+      "insert_bytes": 8353
+    },
+    {
+      "path": "dist/claude/shared/transcript.js",
+      "copy_bytes": 592,
+      "insert_bytes": 3983
+    },
+    {
+      "path": "dist/claude/summarize.js",
+      "copy_bytes": 4314,
+      "insert_bytes": 0
+    },
+    {
+      "path": "dist/codex/app-server.js",
+      "copy_bytes": 3326,
+      "insert_bytes": 3154
+    },
+    {
+      "path": "dist/codex/memory.js",
+      "copy_bytes": 1801,
+      "insert_bytes": 0
+    },
+    {
+      "path": "dist/codex/provider.js",
+      "copy_bytes": 3012,
+      "insert_bytes": 6353
+    },
+    {
+      "path": "dist/codex/rollout.js",
+      "copy_bytes": 360,
+      "insert_bytes": 2547
+    },
+    {
+      "path": "dist/codex/session.js",
+      "copy_bytes": 43658,
+      "insert_bytes": 4734
+    },
+    {
+      "path": "dist/codex/status.js",
+      "copy_bytes": 259,
+      "insert_bytes": 212
+    },
+    {
+      "path": "dist/codex/storage.js",
+      "copy_bytes": 5004,
+      "insert_bytes": 49
+    },
+    {
+      "path": "dist/codex/summarize.js",
+      "copy_bytes": 2264,
+      "insert_bytes": 0
+    },
+    {
+      "path": "dist/codex/transcript.js",
+      "copy_bytes": 1729,
+      "insert_bytes": 5570
+    },
+    {
+      "path": "dist/debug.js",
+      "copy_bytes": 238,
+      "insert_bytes": 0
+    },
+    {
+      "path": "dist/expose/providers/bore.js",
+      "copy_bytes": 376,
+      "insert_bytes": 0
+    },
+    {
+      "path": "dist/expose/providers/ngrok.js",
+      "copy_bytes": 1102,
+      "insert_bytes": 45
+    },
+    {
+      "path": "dist/expose/providers/pinggy.js",
+      "copy_bytes": 515,
+      "insert_bytes": 0
+    },
+    {
+      "path": "dist/expose/registry.js",
+      "copy_bytes": 835,
+      "insert_bytes": 0
+    },
+    {
+      "path": "dist/expose/run.js",
+      "copy_bytes": 2757,
+      "insert_bytes": 0
+    },
+    {
+      "path": "dist/expose/types.js",
+      "copy_bytes": 11,
+      "insert_bytes": 0
+    },
+    {
+      "path": "dist/index.js",
+      "copy_bytes": 1732,
+      "insert_bytes": 2392
+    },
+    {
+      "path": "dist/logger.js",
+      "copy_bytes": 1521,
+      "insert_bytes": 142
+    },
+    {
+      "path": "dist/provider-routing.js",
+      "copy_bytes": 360,
+      "insert_bytes": 1411
+    },
+    {
+      "path": "dist/request-diagnostics.js",
+      "copy_bytes": 56,
+      "insert_bytes": 932
+    },
+    {
+      "path": "dist/routes/core.js",
+      "copy_bytes": 10425,
+      "insert_bytes": 1193
+    },
+    {
+      "path": "dist/routes/events.js",
+      "copy_bytes": 3305,
+      "insert_bytes": 1290
+    },
+    {
+      "path": "dist/session.js",
+      "copy_bytes": 868,
+      "insert_bytes": 4
+    },
+    {
+      "path": "dist/startup/common.js",
+      "copy_bytes": 6283,
+      "insert_bytes": 131
+    },
+    {
+      "path": "dist/startup/instance.js",
+      "copy_bytes": 2533,
+      "insert_bytes": 21
+    },
+    {
+      "path": "dist/startup/pairing.js",
+      "copy_bytes": 24,
+      "insert_bytes": 767
+    },
+    {
+      "path": "dist/summary-format.js",
+      "copy_bytes": 501,
+      "insert_bytes": 0
+    },
+    {
+      "path": "dist/types.js",
+      "copy_bytes": 188,
+      "insert_bytes": 0
+    },
+    {
+      "path": "dist/update.js",
+      "copy_bytes": 1816,
+      "insert_bytes": 59
+    },
+    {
+      "path": "dist/util/spawn-shim.js",
+      "copy_bytes": 1132,
+      "insert_bytes": 0
+    },
+    {
+      "path": "even-terminal",
+      "copy_bytes": 0,
+      "insert_bytes": 343
+    },
+    {
+      "path": "even-terminal-ngrok",
+      "copy_bytes": 0,
+      "insert_bytes": 588
+    },
+    {
+      "path": "package-lock.json",
+      "copy_bytes": 5623,
+      "insert_bytes": 51583
+    },
+    {
+      "path": "package.json",
+      "copy_bytes": 313,
+      "insert_bytes": 539
+    },
+    {
+      "path": "scripts/diagnose-claude.mjs",
+      "copy_bytes": 1023,
+      "insert_bytes": 5353
+    },
+    {
+      "path": "scripts/live-smoke.mjs",
+      "copy_bytes": 500,
+      "insert_bytes": 4045
+    },
+    {
+      "path": "scripts/probe-claude-remote.mjs",
+      "copy_bytes": 968,
+      "insert_bytes": 5581
+    },
+    {
+      "path": "scripts/recover-transcript.mjs",
+      "copy_bytes": 87,
+      "insert_bytes": 927
+    },
+    {
+      "path": "test/claude-remote.test.js",
+      "copy_bytes": 628,
+      "insert_bytes": 17889
+    },
+    {
+      "path": "test/claude-sdk.test.js",
+      "copy_bytes": 213,
+      "insert_bytes": 8047
+    },
+    {
+      "path": "test/claude-shared.test.js",
+      "copy_bytes": 425,
+      "insert_bytes": 18969
+    },
+    {
+      "path": "test/provider-routing.test.js",
+      "copy_bytes": 0,
+      "insert_bytes": 2180
+    },
+    {
+      "path": "test/request-diagnostics.test.js",
+      "copy_bytes": 27,
+      "insert_bytes": 1313
+    },
+    {
+      "path": "test/shared.test.js",
+      "copy_bytes": 1544,
+      "insert_bytes": 25158
+    },
+    {
+      "path": "test/startup.test.js",
+      "copy_bytes": 137,
+      "insert_bytes": 2430
+    }
+  ]
+}

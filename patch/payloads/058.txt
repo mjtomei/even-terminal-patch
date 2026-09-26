@@ -1,0 +1,262 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
+import { once } from 'node:events';
+import express from 'express';
+import { ClaudeRemoteClient } from '../dist/claude/remote/client.js';
+import { localBindings } from '../dist/claude/remote/bindings.js';
+import { createRemo'../dist/claude/remote/provider.js';
+import { RemoteTranscript } from '../dist/claude/remote/transcript.js';
+
+const until = async predicate => {
+  3000;
+    while (!predicate()) {
+        if (Date.now() > deadline) throw new Error('Timed out waiting for native event');
+        await new Promise(resolve => setTimeout(resolve, 10));
+    }
+};
+function backend() {
+    const id = randomUUID(), cloudId = 'cse_nativeTest', calls = [], events = [];
+    let binding = { localId: id, cloudId, pid: 123, procStart: '456', cwd: '/test' };
+    let metadata = { id: cloudId, title: 'Native test', status: 'active', environment_kind: 'bridge', connection_status: 'connected',
+        worker_status: 'idle', requires_action_details_list: [], created_at: '2026-09-24T00:00:00Z' };
+    const append = payload => events.push({ sequence_num: String(events.length + 1), event_id: randomUUID(), payload: { uuid: randomUUID(), session_id: cloudId, ...payload } });
+    const message = (role, text, uuid = randomUUID()) => append({ type: role, uuid, parent_tool_use_id: null, message: { role, content: text } });
+    message('user', 'Desktop message'); message('assistant', 'Desktop reply');
+    const client = {
+        async listSessions() { calls.push(['list']); return [structuredClone(metadata)]; },
+        async getSession(remote) { assert.equal(remote, cloudId); calls.push(['metadata']); return structuredClone(metadata); },
+        async events(remote, { cursor, order = 'asc', limit = 200 } = {}) {
+            assert.equal(remote, cloudId); calls.push(['events', cursor, order]);
+            const filtered = events.filter(e => !cursor || (order === 'desc' ? BigInt(e.sequence_num) < BigInt(cursor) : BigInt(e.sequence_num) > BigInt(cursor)));
+            if (order === 'desc') filtered.reverse();
+            const data = filtered.slice(0, limit);
+            return structuredClone({ data, next_cursor: filtered.length > data.length ? data.at(-1).sequence_num : null });
+        },
+        async send(remote, payload) {
+            assert.equal(remote, cloudId); calls.push(['send', structuredClone(payload)]);
+            append(payload);
+            if (payload.type === 'user') {
+                append(payload); // Some transports echo the same user UUID.('assistant', 'Reply to glasses');
+            } else if (payload.type === 'control_response') {
+                metadata.worker_status = 'idle'; metadata.requires_action_details_list = []results: [{}] };
+        },
+        close() { calls.push(['close']); },
+    };
+    return { id, cloudId, calls, events, append, message, client, bindings: () => binding ? [binding] : [],
+        switchSession: () => { binding = { ...binding, localId: randomUUID() }; },
+        setMetadata: patch => { metadata = { ...metadata, ...patch }; } };
+}
+
+test('native client uses existing OAuth session/event endpoints and never retries an ambiguous send', async t => {
+    const dir = await mkdtemp(join(tmpdir(), 'even-native-client-'));
+    t.after(() => rm(dir, { recursive: true, force: true }));
+    await writeFile(join(dir, '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'test-only-token', expiresAt: Date.now() + 60000 } }));
+    const calls = [];
+    const client = new ClaudeRemoteClient({ configDir: dir, fetchImpl: async (url, options) => {
+        calls.push([url, options]);
+        assert.equal(options.headers.Authorization, 'Bearer test-only-token');
+        if (options.method === 'POST') throw new Error('Connection lost after sending');
+        return new Response(JSON.stringify({ response_shape: { id: 'cse_test', environment_kind: 'bridge' } }));
+    } });
+    assert.equal((await client.getSession('cse_test')).id, 'cse_test');
+    const payload = { uuid: randomUUID(), type: 'user', session_id: 'cse_test', message: { role: 'user', content: 'Test' } };
+    await assert.rejects(client.send('cse_test', payload), /delivery is unknown/);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1][0], 'https://api.anthropic.com/v1/code/sessions/cse_test/events');
+    assert.deepEqual(JSON.parse(calls[1][1].body), { events: [{ payload }] });
+    client.close();
+    await assert.rejects(client.getSession('cse_test'), /closed/);
+    assert.equal(calls.length, 2);
+});
+
+test('native client reports credential rejection without exposing the token', async t => {
+    const dir = await mkdtemp(join(tmpdir(), 'even-native-auth-'));
+    t.after(() => rm(dir, { recursive: true, force: true }));
+    await writeFile(join(dir, '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'private-token', expiresAt: Date.now() + 60000 } }));
+    let requests = 0;
+    const client = new ClaudeRemoteClient({ configDir: dir, fetchImpl: async () => {
+        requests++; return new Response(JSON.stringify({ error: { message: 'Rejected private-token' } }), { status: 403 });
+    } });
+    t.after(() => client.close());
+    await assert.rejects(client.listSessions(), error => error.statusCode === 403 && !error.message.includes('private-token'));
+    assert.equal(requests, 1);
+});
+
+test('native session lists paginate with next_cursor, not the snapshot resume_token', async t => {
+    const dir = await mkdtemp(join(tmpdir(), 'even-native-pages-'));
+    t.after(() => rm(dir, { recursive: true, force: true }));
+    await writeFile(join(dir, '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'test-token' } }));
+    const urls = [];
+    const client = new ClaudeRemoteClient({ configDir: dir, fetchImpl: async url => {
+        urls.push(url);
+        return new Response(JSON.stringify(urls.length === 1 ? { data: [{ id: 'cse_one' }], next_cursor: 'page-two', resume_token: 'not-a-cursor' }
+            : { data: [{ id: 'cse_two' }], resume_token: 'not-a-cursor' }));
+    } });
+    t.after(() => client.close());
+    assert.deepEqual((await client.listSessions()).map(s => s.id), ['cse_one', 'cse_two']);
+    assert.equal(urls.length, 2);
+    assert.equal(new URL(urls[1]).searchParams.get('cursor'), 'page-two');
+});
+
+test('native local/cloud identity requires a matching process start, not just a live PID', async t => {
+    const dir = await mkdtemp(join(tmpdir(), 'even-native-bindings-'));
+    t.after(() => rm(dir, { recursive: true, force: true }));
+    await mkdir(join(dir, 'sessions'));
+    const id = randomUUID(), configPath = join(dir, 'global.json');
+    await writeFile(configPath, JSON.stringify({ replBridgePlaceholders: { cse_test: { pid: 123, procStart: '456' } } }));
+    await writeFile(join(dir, 'sessions', '123.json'), JSON.stringify({ pid: 123, procStart: '456', sessionId: id, cwd: '/test' }));
+    const options = { configDir: dir, configPath, processStart: () => '456' };
+    assert.deepEqual(localBindings(options), [{ cloudId: 'cse_test', localId: id, pid: 123, procStart: '456', cwd: '/test' }]);
+    assert.deepEqual(localBindings({ ...options, processStart: () => '999' }), []);
+});
+
+test('native provider shares one conversation across external input, glasses input and history reload', async t => {
+    const f = backend(), output = [];
+    const provider = createRemoteClaudeProvider((id, event) => output.push({ id, ...event }), { client: f.client, bindings: f.bindings, pollMs: 20 });
+    t.after(() => provider.close());
+    assert.equal(())[0].id, f.id);
+    await provider.attach(f.id);
+    assert.deepEqual(f.id), [{ role: 'user', text: 'Desktop message' }, { role: 'assistant', text: 'Desktop reply' }]);
+    f.message('user', 'Phone message'); f.message('assistant', 'Phone reply');
+    await until(() => output.some(e => e.type === 'text_delta' && e.text.includes('Phone reply')));
+    assert.deepEqual(await provider.prompt(f.id, 'Glasses message'), { sessionId: f.id, provider: 'claude' });
+    await until(() => output.some(e => e.type === 'text_delta' && e.text.includes('Reply to glasses')));
+f.id);
+    assert.deepEqual(history.map(e => e.text), ['Desktop message', 'Desktop reply', 'Phone message', 'Phone reply', 'Glasses message', 'Reply to glasses']);
+    assert.equal(output.filter(e => e.type === 'user_prompt' && e.text === 'Glasses message').length, 1);
+    const sends = f.calls.filter(call => call[0] === 'send');
+    assert.equal(sends.length, 1);
+    assert.equal(sends[0][1].session_id, f.cloudId);
+    assert.equal(sends[0][1].message.content, 'Glasses message');
+    assert.ok(output.every(event => event.id === f.id));
+});
+
+test('opening an idle native session does not stream completed history as a new reply', async t => {
+    const f = backend(), output = [];
+    const provider = createRemoteClaudeProvider((id, event) => output.push(event), { client: f.client, bindings: f.bindings, pollMs: 20 });
+    t.after(() => provider.close());
+    await provider.attach(f.id);
+    assert.deepEqual(provider.initialMessages(f.id).map(e => e.type), ['status']);
+    assert.deepEqual((f.id)).map(e => e.text), ['Desktop message', 'Desktop reply']);
+    await provider.prompt(f.id, 'New glasses message');
+    await until(() => output.some(e => e.type === 'text_delta'));
+    assert.deepEqual(output.filter(e => e.type === 'text_delta').map(e => e.text.trim()), ['Reply to glasses']);
+    assert.deepEqual(provider.initialMessages(f.id).map(e => e.type), ['status']);
+    assert.deepEqual((f.id)).map(e => e.text), ['Desktop message', 'Desktop reply', 'New glasses message', 'Reply to glasses']);
+});
+
+test('opening a busy native session still recovers the current reply and pending controls', async t => {
+    const f = backend();
+    f.message('user', 'Current question'); f.message('assistant', 'Current partial reply');
+    f.setMetadata({ worker_status: 'running' }createRemoteClaudeProvider(() => {}, { client: f.client, bindings: f.bindings, pollMs: 60000 });
+    t.after(() => provider.close());
+    await provider.attach(f.id);
+    assert.deepEqual(provider.initialMessages(f.id).map(e => e.text || e.state), ['Current question', 'Current partial reply', 'busy']);
+    assert.deepEqual(provider.initialMessages(f.id, false).map(e => e.type), ['status']);
+    f.setMetadata({ worker_status: 'waiting', requires_action_details_list: [{}] });
+    f.append({ type: 'control_request', request_id: 'current-permission', request: { subtype: 'can_use_tool', tool_name: 'Bash', input: { command: 'example' } } });
+   f.id);
+    assert.equal(provider.initialMessages(f.id).at(-1).toolUseId, 'current-permission');
+});
+
+test('native reconnect catches up without resending input; bridge close does not stop Claude', async t => {
+    const f = backend(); let failReads = false;
+    const read = f.client.events;
+    f.client.events = async (...args) => { if (failReads) throw new Error('Offline'); return read(...args); };
+    const output = [];
+    const provider = createRemoteClaudeProvider((id, event) => output.push(event), { client: f.client, bindings: f.bindings, pollMs: 20 });
+    t.after(() => provider.close());
+    await provider.attach(f.id);
+    failReads = true;
+    await assert.rejects(provider.getHistory(f.id), /Offline/);
+    f.message('user', 'While disconnected'); f.message('assistant', 'Recovered reply');
+    failReads = false;
+    await provider.attach(f.id);
+    assert.ok((f.id)).some(e => e.text === 'Recovered reply'));
+    await provider.close();
+    assert.equal(f.calls.filter(call => call[0] === 'send').length, 0);
+    assert.ok(output.some(e => e.type === 'text_delta' && e.text.includes('Recovered reply')));
+});
+
+test('native routing refuses an owner switch, disconnected input and creating another session', async t => {
+    const f = backendcreateRemoteClaudeProvider(() => {}, { client: f.client, bindings: f.bindings, pollMs: 60000 });
+    t.after(() => provider.close());
+    await assert.rejects(provider.prompt(undefined, 'New'), error => error.statusCode === 400);
+    await assert.rejects(provider.attach(randomUUID()), /no active native Remote Control/);
+    await provider.attach(f.id);
+    f.setMetadata({ connection_status: 'disconnected' });
+    await assert.rejects(provider.prompt(f.id, 'Offline input'), /disconnected/);
+    f.setMetadata({ connection_status: 'connected' }); f.switchSession();
+    await assert.rejects(provider.prompt(f.id, 'Wrong conversation'), /changed or closed/);
+    assert.equal(f.calls.filter(call => call[0] === 'send').length, 0);
+});
+
+test('native approvals keep request identity and answers from another device become stale', async t => {
+    const f = backend(), output = [];
+    const provider = createRemoteClaudeProvider((id, event) => output.push(event), { client: f.client, bindings: f.bindings, pollMs: 20 });
+    t.after(() => provider.close());
+    await provider.attach(f.id);
+    const request = { subtype: 'can_use_tool', tool_name: 'Bash', input: { command: 'example' }, tool_use_id: 'tool-1' };
+    f.setMetadata({ worker_status: 'waiting', requires_action_details_list: [{}] });
+    f.append({ type: 'control_request', request_id: 'permission-1', request });
+    await until(() => output.some(e => e.type === 'permission_request'));
+    await assert.rejects(pf.id, 'allow', 'stale'), /no longer pending/);
+    f.append({ type: 'control_response', response: { request_id: 'permission-1', subtype: 'success', response: { behavior: 'allow' } } });
+    f.setMetadata({ worker_status: 'idle', requires_action_details_list: [] });
+    await until(() => output.some(e => e.type === 'permission_result'));
+    await assert.rejects(pf.id, 'allow', 'permission-1'), /no longer pending/);
+    f.append({ type: 'control_request', request_id: 'permission-2', request });
+    f.setMetadata({ worker_status: 'waiting', requires_action_details_list: [{}] });
+    await until(() => output.some(e => e.type === 'permission_request' && e.toolUseId === 'permission-2'));
+    await pf.id, 'allow', 'permission-2');
+    const sends = f.calls.filter(call => call[0] === 'send');
+    assert.equal(sends.length, 1);
+    assert.deepEqual(sends[0][1].response, { subtype: 'success', request_id: 'permission-2', response: { behavior: 'allow', updatedInput: request.input } });
+});
+
+test('native transcript preserves repeated text with different UUIDs and excludes subagent duplicates', () => {
+    const transcript = new RemoteTranscript('local', () => {});
+    const add = (seq, uuid, role, text, parent = null) => transcript.ingest({ sequence_num: String(seq), payload: { uuid, type: role, parent_tool_use_id: parent, message: { content: text } } });
+    add(1, 'one', 'user', 'Hello'); add(2, 'two', 'assistant', 'Hello back');
+    add(3, 'three', 'user', 'Hello'); add(4, 'four', 'assistant', 'Again'); add(5, 'four', 'assistant', 'Again');
+    add(6, 'subagent', 'assistant', 'Internal reply', 'parent-tool');
+    assert.deepEqual(transcript.history().map(e => e.text), ['Hello', 'Hello back', 'Hello', 'Again']);
+});
+
+test('Even HTTP/SSE selects the native Claude session with provider omitted', async t =>CLAUDE_MODE = 'remote';
+   'codex';
+    const { default: core, claudeProvider, codexProvider } = await import('../dist/routes/core.js');
+    const { default: events, pushMessage, broadcast } = await import('../dist/routes/events.js');
+    const originalClose = claudeProvider.close;
+    const f = backend();
+    const native = createRemoteClaudeProvider((id, event) => broadcast(id, event, pushMessage(id, event)), { client: f.client, bindings: f.bindings, pollMs: 20 });
+    for (const [name, method] of Object.entries(native)) t.mock.method(claudeProvider, name, method);
+    t.mock.method(codexProvider, 'attach', () => assert.fail('Native Claude ID routed to Codex'));
+    const app = express(); app.use(express.json()); app.use('/api', events, core);
+    app.use((error, req, res, next) => res.status(error.statusCode || 500).json({ error: error.message }));
+    const server = app.listen(0, '127.0.0.1'); await once(server, 'listening');
+    t.after(async () => { await native.close(); await originalClose(); await codexProvider.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
+    const base = `http://127.0.0.1:${server.address().port}/api`;
+    const listing = await (await fetch(`${base}/sessions?provider=claude`)).json();
+    assert.equal(listing.sessions[0].id, f.id); t.after);
+    const stream = await fetch(`${base}/events?sessionId=${f.id}`, { });
+    assert.equal(stream.status, 200);
+    let sse = '';
+    const reading = (async () => { try { for await (const chunk of stream.body) sse += Buffer.from(chunk).toString(); } catch {} })();
+    await until(() => sse.includes(':cursor'));
+    assert.ok(!sse.includes('Desktop reply'), 'Completed history must not be streamed into the app\'s live reply buffer');
+    assert.ok(!sse.includes('Desktop message'));
+    const initialHistory = await (await fetch(`${base}/sessions/${f.id}/history`)).json();
+    assert.deepEqual(initialHistory.history.map(e => e.text), ['Desktop message', 'Desktop reply']);
+    const prompt = await fetch(`${base}/prompt`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: f.id, text: 'From glasses HTTP' }) });
+    assert.equal(prompt.status, 202);
+    await until(() => sse.includes('Reply to glasses'));
+(await fetch(`${base}/sessions/${f.id}/history`)).json();
+    assert.ok(history.history.some(e => e.text === 'From glasses HTTP'));
+    assert.equal((await (await fetch(`${base}/status?sessionId=${f.id}`)).json()).provider, 'claude');
+    controller.abort(); await reading;
+});

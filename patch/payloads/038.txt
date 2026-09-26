@@ -1,0 +1,28 @@
+parseProvider } from './session.js';
+
+// The glasses can omit provider even after listing sessions from both backends.
+// Remember the backend that supplied each ID; never probe by sending a prompt
+// or trying to resume that ID in a different backend.
+export function createProviderRouting(registry,) {
+    const listedremember(id, name) {
+        if (typeof id !== 'string' || !id) return;
+        const owners = listed.get(id) || new Set();
+        owners.add(parseProvider(name));
+        listed.delete(id);
+        listed.set(id, owners);
+        if (listed.size > 5000) listed.delete(listed.keys().next().valueolve(name, id) {
+        let resolved;
+        if (nametry { resolved = parseProvider(name);or) { throw Object.assign(error, { statusCode: 400 }); }
+        } else if (id) {
+            // Read-only local recognition also handles reconnection after the
+            // bridge restarts, before the phone refreshes its session list.
+            const owners = listed.get(id) || new Set(Object.entries(registry)
+[, provider]) => provider.hasSession?.(id))
+                .map(([provider]) => provider));
+            if (owners.size > 1)'Session ID belongs to multiple providers; specify provider'), { statusCode: 409 });owners.values().next().value;
+        }
+        resolved ||= dprovider = registry[resolved];
+        if (!provider)    return provider;
+    }
+    return { remember, resolve };
+}

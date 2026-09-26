@@ -1,0 +1,50 @@
+join, isAbsolute } from "node:path";
+
+export function defaultEndpoint(env = process.env) {
+    return env.CODEX_APP_SERVER_URL || `unix://${env.CODEX_APP_SERVER_SOCKET || join(env.CODEX_HOME || join(homedir(), ".codex"), "app-server-control", "app-server-control.sock")}`;
+}
+
+export function connectionOptions(endpoint, env = process.env{ perMessageDeflate: false, handshakeTimeout: 5000, maxPayload: 64 * 1024 * 1024 };
+    if (endpoint.startsWith("unix://")) {
+        const path = endpoint.slice(7);
+        if (!isAbsolute(path) || path.includes(":")) throw new Error("Codex socket must be an absolute path without ':'");
+        return { url: `ws+unix://${path}:/`, options: { ...options, headers: { Host: "localhost" } } };
+    }
+    const url = new URL(endpoint);
+    if (!["ws:", "wss:"].includes(url.protocol)) throw new Error("Codex endpoint must use unix://, ws://, or wss://");
+    const token = env.CODEX_APP_SERVER_TOKEN;
+    if (token) options.headers = { Authorization: `Bearer ${token}` };
+    return { url: endpoint, options };
+}
+
+// Connect to an existing daemon. Never start/stop Codex or automatically retry a
+// mutating RPC whose outcome is unknown after a transport failure.constructor(endpoint = defaultEndpoint(), { requestTimeoutMs = 30000 } = {}) {
+        this.endpoint = endpoint;
+        this.requestTimeoutMs = requestconnected() { return this.initialized && this.ws?; }if (this.connected)open().finally(() => {open() {
+        const { url, options } = connectionOptions(this.endpoint);
+url, options);
+try {
+            ws.once("open", resolve);
+                ws.once("error", reject);
+                ws.once("close", Codex connection closed before opening")));
+    this.handleMessage(data, ws));
+    ) => {});
+    this.disconnected(ws)this.serverInfo = name: "even_terminal_shared", version: "0.8.1-shared.1" experimentalApi: truesend({} catch (error) {
+            this.disconnected(ws, error);
+            ws.terminate();Cannot connect to the existing Codex daemon: ${error.message}`, { cause: errordisconnected(ws, error = new Error("Codex connection lost; reconnecting")!== ws) = null;erro.clear();
+orws = this.ws;
+        if (!ws) return;
+        this.disconnected(ws, ws.close();
+    }
+    send(message) {
+        if (this.ws?throw new Error("Codex is disconnected")essageconnect();
+        return this.callRaw(method, params);
+    }
+   Codex request timed out: ${method}. Its outcome is unknown; check the conversation before resending.`));
+            }, this.requestry { this.send({ id, method, params });or) { clearTimeout(timer); reject(error); }Message(data, ws) {
+        if (ws !== this.ws)line of data.toString()if (!line.trim())msg;
+            try { msg = JSON.parse(line); }
+            catch { ws.close(1002, "Invalid JSON"); return; }if (msg.id == null)else        if (!pending)    if (msg.error) pending.reject(), { }));
+                else this.send({ id, result }); returnfalse) { return ( threadId, includeTurns })).thread; } return return ().thread; return return ().turn; }
+    async turnSteer(params) { return this.call("turn/steer", params); return return return (read", {})).account; }
+}

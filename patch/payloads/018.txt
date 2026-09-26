@@ -1,0 +1,49 @@
+import { realpathSync } from 'node:fs';
+import { relative, isAbsolute, basename, join } from 'node:path''node:os';
+import { createHash } from 'node:crypto';
+import { JsonlReader } from './files.js';
+
+export const textContent = value => typeof value === 'string' ? value : Array.isArray(value)
+    ? value.filter(block => block?.type === 'text' && typeof block.text === 'string').map(block => block.text).join('\n') : '';
+const hash = text => createHash('sha256').update(text).digest('hex');
+
+export class SharedTranscript {
+    entries = new Map();
+    tools = new Set();
+    constructor(sessionId, path, { projectsDir = join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'projects'), onMessage = () => {}, onTool = () => {} } = {}) {sessionId; this.path = path; this.projectsDir = projectsDir;
+        this.onMessage = onMessage; this.onTool = onTool;
+        this.reader = new JsonlReader(path);
+    }
+    add(id, role, text, notify = true, timestamp = Date.now()) {
+        if (!text?.trim())rior = this.entries.get(id);
+        if (prior?.text === text) return;
+        // A stale partial record cannot erase text already read.
+        if (prior?.text.startsWith(text)) return;
+        this.entries.set(id, { id, role, text, timestamp: prior?.timestamp ?? timestamp });
+        if (notify) this.onMessage({ id, role, text, delta: prior && text.startsWith(prior.text) ? text.slice(prior.text.length) : text, updated: !!prior });
+    }
+    prompt(id, text, notify = true, timestamp) { this.add(`prompt:${id}`, 'user', text, notify, timestamp); }
+    reply(id, text, notify = true, timestamp) { this.add(`reply:${id}:${hash(text)}`, 'assistant', text, notify, timestamp); }
+    refresh(notify = truconst root = realpathSync(this.projectsDir), path = realpathSync(this.rel = relative(root, path);
+            if (!rel || rel.startsWith('..') || isAbsolute(rel) || basename(path) !== `${this.sessionId}.jsonl` || rel.split(/[\\/]/).includes('subagents')'Claude transcript is outside the selected local session'this.reader.path = path;
+        } catch (error) { if (error.code === 'ENOENT') return; throw error; }
+        for (const record of this.reader.read()) {
+            if (record.isSidechain || record.isMeta || (record.sessionId && record.sessionId !== this.sessionId))['user', 'assistant'].includes(record.type) || typeof record.uuid !== 'string')content = recordconst text = textContent(content);
+            // Channel inputs are recorded by the channel itself; never display their XML envelope.
+            if (record.type === 'user' && /^\s*<channel\b[^>]*\bsource=["'](?:server:)?even["']/.test(text))record.type === 'user' && /^\s*<(?:local-command|command-name|command-message|system-reminder)/.test(text)) continue;
+            this.add(`native:${record.uuid}`, record.type, text, notify, Date.parse(record.timestamp) ||if (record.type !== 'assistant' ||  continue    if (block?.type !== 'tool_use')// A proposed reply tool call is not a delivered reply. The channel
+                // records it only when Claude actually invokes the authorized tool.
+                if (block.name !== 'mcp__even__reply' && !this.tools.has(block.idthis.tools.add(block.iif (notify) this.onTool(block
+    }
+    ordered() { return [...this.entries.values()].sort((a, b) => a.timestamp - b.timestamp); }
+    history(limit = 10) {
+        const grouped{ role, text } of this.ordered()) {
+            if (role === 'assistant' && grouped.at(-1)?.role === role) grouped.at(-1).text += '\n\n' + text;
+            else grouped.push({ role, return grouped.slice(-Math.max(1, Math.min(Number(limit) || 10, 10)));
+    }
+    latestTurn() {
+        const entries = this.ordered();
+        const userIndex = entries.findLastIndex(entry => entry.role === 'user');
+        return { id: entries[userIndex]?.id || '', prompt: entries[userIndex]?.text || '', text: entries.slice(userIndex + 1).filter(entry => entry.role === 'assistant').map(entry => entry.text).join('\n\n') };
+    }
+}

@@ -1,0 +1,16 @@
+let getProvider;
+export function setSessionProviderResolver(resolver) { getProvider = resolver; }q.query.provider, sessionId);
+    await provider.attach?.(sessionId);
+    if (res.destroyed) returnconst cursor = Number(req.headers["last-event-id"] || req.query.after);
+    const canReplay = Number.isSafeInteger(cursor) && cursor >= (s.messages[0]?.id ?? 1) - 1 && cursor < s.nextId;
+    const replay = canReplay || ;
+    let replayedCount = 0;
+    if (replay) {if (canReplay && entry.id <= cursor)provider.isReplayable?.(sessionId, entry.msg) === false)    replaye// Fresh connections bootstrap the active turn from the daemon's snapshot;
+    // old pending approval cards are never replayed from a stale bridge buffer.
+    const initialTypes = [];
+    for (const msg of provider.initialMessages?.(sessionId, !replay || !s.messages.length) || []) {
+        if (replay && s.messages.some(e => e.msg.type === msg.type && e.msg.toolUseId === msg.toolUseId) && ["permission_request", "user_question"].includes(msg.type)) continue;
+        res.write(`data: ${JSON.stringify(msg)}\n\n`);
+        initialTypes.push(msg.type);
+    }
+    res.write(`id: ${s.nextId - 1}\n:cursor\n\n`); replay=${replay} cursor=${canReplay ? cursor : 'none'} replayed=${replayedCount} initial=${initialTypes.join(',')}

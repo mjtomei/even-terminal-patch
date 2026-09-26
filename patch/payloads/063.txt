@@ -1,0 +1,361 @@
+import test from 'node:test';
+import assert from 'node:assert/strict''node:http';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { WebSocketServer } from 'ws', connectionOptions } from '../dist/codex/app-server.js''../dist/codex/provider.js''../dist/codex/session.js''../dist/codex/status.js';
+import { CodexTranscript } from '../dist/codex/transcript.js';
+import { parseRollout } from '../dist/codex/rollout.js';
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function until(predicate, timeout = 4000) {
+    const end = Date.now() + timeout;
+    while (Date.now() < end) { if (await predicate()) return; await sleep(10); }
+    throw new Error('Condition did not become true');
+}
+
+async function daemon(t) {
+    const dir = await mkdtemp(join(tmpdir(), 'even-shared-test-'));
+    const socket = join(dir, 'daemon.sock');
+const wss = new WebSocketServer({ server });
+    const requests = [];
+    const cliethread = { id: 'existing', cwd: '/workspace/actual-project', name: 'Existing conversation', status: { type: 'active', activeFlags: [] }, canAcceptDirectInput: true,
+        historyMode: 'paginated', updatedAt: 100, turns: [{ id: 'turn-1', status: 'inProgress', startedAt: Date.now()/1000,
+            items: [{ id: 'user-1', type: 'userMessage', content: [{ type: 'text', text: 'Desktop question' }] }, { id: 'agent-1', type: 'agentMessage', text: 'Already written' }] }] }Map();
+    const state = { dir, socket, requests, thread, clients, pending, hangMethod: null, nextSteerError: null, onResume: null };
+    state.emit = (method, params, id[ws, subscriptions] of clients) if (subscriptions.has(params.threadId)) ws.send(JSON.stringify({ method, params, ...(id != null ? { id } : {}) }));
+    };
+    state.complete = () => {
+        thread.status = { type: 'idle' };
+        thread.turns[0].status = 'completed';
+        state.emit('thread/status/changed', { threadId: thread.id, status: thread.status });
+        state.emit('turn/completed', { threadId: thread.id, turn: thread.turns[0] });
+    };
+    wss.on('connection', ws => {
+        clients.set(ws, new Set());
+        ws.on('close', () => clients.delete(ws));
+        ws.on('message', datam = JSON.parse(data); requests.push(m);
+            if (m.id == null || !m.method) return;
+            if (state.hangMethod === m.method)reply = result => ws.send(JSON.stringify({ id: m.id, result })); = message => ws.send(JSON.stringify({ id: m.id, error: { code: -32600, message } }));
+            switch (m.method) {
+                case 'initialize': reply({ userAgent: 'test-daemon/0.153.4' });case 'thread/list': reply({ data: [thread], nextCursor: null });case 'thread/read': reply({ thread });case 'thread/resume':.params.threadId !== thread.id) { error('thread not found'); break; }
+                    clients.get(ws).add(thread.istate.onResume?.(ws);
+                    reply({ thread: { ...thread, turns: [...thread.turns].reverse() }, initialTurnsPage: { data: thread.turns }for (const [id, request] of pending) ws.send(JSON.stringify({ id, ...request }));    case 'thread/turns/list': reply({ data: state.persistedTurns ?? thread.turns, nextCursor: null });case 'thread/unsubscribe': clients.get(ws).delete(m.params.threadId); reply({ status: 'unsubscribed' });case 'account/read': reply({ account: { type: 'chatgpt' } });case 'turn/steer':state.nextSteerError) { const e = state.nextSteerError; state.nextSteerError = null; error(e); break; }.params.expectedTurnId !== thread.turns[0].id || thread.status.type !== 'active') { error('no active turn'); break; }
+                    reply({ turnId: thread.turns[0].id });case 'turn/start':ead.status = { type: 'active', activeFlags: [] }hread.turns[0].status !== 'inProgress') thread.turns.unshift({ id: 'turn-2', status: 'inProgress', items: []reply({ turn: thread.turns[0]state.emit('turn/started', { threadId: thread.id, turn: thread.turns[0] });case 'turn/interrupt': reply({}); state.complete();default: error(`Unexpected method: ${m.});
+    });
+    server.listen(socket); await once(server, 'listening');
+    t.after(async () => { for (const ws of clients.keys()) ws.terminate(); wss.close(); await new Promise(r => server.close(r)); await rm(dir, { recursive: true, force: true }); });
+    return state;
+}
+function providerFor(t, d, options = {}) {
+    const cunix://${d.socket}`, { requestTimeoutMs: options.requestTimeoutMs ?? 1000 });
+    const events = [];
+    const p(id, msg) => events.push({ id, ...msg }), () => client, { reconnectDelayMs: 15, stateDir: options.stateDir });
+    t.after(() => provider.close());
+    return { client, events, provider };
+}
+
+ test('Unix transport uses the shared endpoint and initializes only once', async t => {
+    const d = await daemon(t); const { client } = providerFor(t, d);
+    await Promise.all([client.threadList({}), client.threadRead('existing')]);
+    assert.equal(d.requests.filter(r => r.method === 'initialize').length, 1);
+    assert.equal(d.requests.some(r => r.method === 'thread/start'), false);
+    assert.equal(connectionOptions(`unix://${d.socket}`).options.headers.Host, 'localhost');
+});
+
+test('attach hydrates the current turn and subscribes without changing its settings', async t => {
+    const d = await daemon(t); const { provider, events } = providerFor(t, d);
+    await Promise.all([provider.attach('existing'), provider.getHistory('existing', 10)]);
+    const resumes = d.requests.filter(r => r.method === 'thread/resume');
+    assert.equal(resumes.length, 1);
+    assert.deepEqual(Object.keys(resumes[0].params), ['threadId']);
+    assert.equal(provider.getStatus('existing').state, 'busy');
+    assert.ok(provider.initialMessages('existing').some(m => m.type === 'text_delta' && m.text === 'Already written'));
+    d.emit('item/agentMessage/delta', { threadId: 'existing', itemId: 'agent-1', delta: ' on desktop' });
+    await until(() => events.some(m => m.type === 'text_delta' && m.text === ' on desktop'));
+    d.complete();
+    await until(() => events.some(m => m.type === 'result'));
+    assert.equal(provider.getStatus('existing').state, 'idle');
+});
+
+test('active input steers the same turn and idle input starts the next without overrides', async t => {
+    const d = await daemon(t); const { provider } = providerFor(t, d);
+    await provider.prompt('existing', 'From glasses', '/incorrect/cwd');
+    const steer = d.requests.find(r => r.method === 'turn/steer');
+    assert.equal(steer.params.expectedTurnId, 'turn-1');
+    assert.deepEqual(steer.params.input, [{ type: 'text', text: 'From glasses' }]);
+    assert.ok(steer.params.clientUserMessageId);
+    assert.equal(steer.params.cwd, undefined);
+    d.complete();
+    await provider.prompt('existing', 'Next turn', '/incorrect/cwd');
+    const start = d.requests.find(r => r.method === 'turn/start');
+    assert.deepEqual(Object.keys(start.params).sort(), ['clientUserMessageId', 'input', 'threadId']);
+    assert.equal(start.params.threadId, 'existing');
+});
+
+test('a definite steer race falls back but a timed-out send is never retried', async t => {
+    const d = await daemon(t); const { provider } = providerFor(t, d, { requestTimeoutMs: 80 });
+    d.nextSteerError = 'no active turn';
+    await provider.prompt('existing', 'Racing input');
+    assert.equal(d.requests.filter(r => r.method === 'turn/start').length, 1);
+    d.hangMethod = 'turn/steer';
+    await assert.rejects(provider.prompt('existing', 'Do not duplicate'), /outcome is unknown/);
+    assert.equal(d.requests.filter(r => r.method === 'turn/start').length, 1);
+    assert.equal(d.requests.filter(r => r.method === 'turn/steer').length, 2);
+});
+
+test('reconnect restores selected subscriptions and catches up missing output', async t => {
+    const d = await daemon(t); const { provider, client, events } = providerFor(t, d);
+    await provider.attach('existing');
+    client.ws.terminate();
+    d.thread.turns[0].items[1].text += ' while disconnected';
+    await until(() => d.requests.filter(r => r.method === 'thread/resume').length >= 2 && provider.getStatus('existing').connected);
+    assert.ok(events.some(m => m.type === 'text_delta' && m.text === ' while disconnected'));
+    d.emit('item/agentMessage/delta', { threadId: 'existing', itemId: 'agent-1', delta: ' after reconnect' });
+    await until(() => events.some(m => m.text === ' after reconnect'));
+    assert.equal(d.requests.some(r => r.method === 'thread/start' || r.method === 'turn/interrupt'), false);
+});
+
+test('detaching and shutting down do not interrupt or answer pending requests', async t => {
+    const d = await daemon(t); const { provider } = providerFor(t, d);
+    await provider.attach('existing');
+    d.emit('', { threadId: 'existing', itemId: 'cmd-1', command: 'example' }, 100);
+    await sleep(20);
+    await provider.detach('existing');
+    assert.equal(d.requests.some(r => r.method === 'turn/interrupt' || (!r.method && r.id === 100)), false);
+    assert.equal(d.thread.status.type, 'active');
+});
+
+test('approval/question timers are disabled and other-device responses clear pending state', t => {
+    const responses = [], events = [];
+(_id, m) => events.push(m), { respondToServerRequest: (...args) => responses.push(args) });
+    session.setThreadId('existing');
+    t.after(() => session.close());
+    session.handleServerRequest(1, '', { itemId: 'cmd-1', command: 'example' });
+    session.handleServerRequest(2, '', { questions: [{ id: 'q', header: 'Choose', question: 'Which?', options: [] }] });
+    assert.equal(session.pendingPermissions[0].timer, null);
+    assert.equal(session.pendingQuestions[0].timer, null);
+    session1);
+    session2);
+    assert.equal(session, 0);
+    assert.equal(session, 0);
+    assert.equal(responses.length, 0);
+    assert.ok(events.some(m => m.type === 'question_answer' && m.resolvedExternally));
+    assert.equal(session.isReplayable({ type: 'user_question', toolUseId: '2' }), false);
+    assert.throws(() => session.respondQuestion('stale reply', 2), /already resolved/);
+    assert.throws(() => session.respondPermission('allow', 1), /already resolved/);
+});
+
+test('explicit approval responses go to the original RPC request and stale IDs are rejected', t => {
+    const responses = [];
+() => {}, { respondToServerRequest: (...args) => responses.push(args) });
+    t.after(() => session.close());
+    session.handleServerRequest(4, '', { command: 'example' });
+    assert.throws(() => session.respondPermission('allow', 3), /no longer current/);
+    session.respondPermission('allow', 4);
+    assert.deepEqual(responses, [[4, { decision: 'accept' }]]);
+});
+
+test('runtime flags and unloaded history do not show false idle/busy state', () => {
+    assert.equal(codexThreadStatus({ status: { type: 'active', activeFlags: ['waitingOnUserInput'] } }), 'awaiting');
+    assert.equal(codexThreadStatus({ status: { type: 'notLoaded' }, turns: [{ status: 'completed' }] }), 'idle');
+});
+
+test('HTTP/SSE interface authenticates, attaches existing threads, streams and responds across clients', async t => {
+    const d = await daemon(t(process.execPath, ['bin/cli.js', '--codex-socket', d.socket, '--host', '127.0.0.1', '--port', '0', '--no-qr'], {
+        cwd: new URL('..', import.meta.url), env: { ...process.env, EVEN_TERMINAL_STATE_DIR: join(d.dir, 'state'), BRIDGE_TOKEN: 'test-only-token', CODEX_APP_SERVER_URL: '' }, stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let output = '';
+    child.stdout.on('data', b => output += b); child.stderr.on('data', b => output += b);
+    t.after(async () => { child.kill('SIGTERM'); await Promise.race([once(child, 'exit'), sleep(4000)]); if (child.exitCode == null) child.kill('SIGKILL'); });
+    await until(() => output.includes('[server] listening'), 6000).catch(e => { throw new Error(output || e.message); });
+    const base = output.match(/\[server\] listening (http:\/\/[^\s]+)/)[1];
+    const headers = { Authorization: 'Bearer test-only-token' };
+    assert.equal((await fetch(`${base}/api/sessions`)).status, 401);
+    const list = await (await fetch(`${base}/api/sessions?provider=codex`, { headers })).json();
+    assert.equal(list.sessions[0].id, 'existing');
+    const abort t.after(() => abort.abort());
+    const stream = await fetch(`${base}/api/events?sessionId=existing&provider=codex`, { headers, signal: abort.signal });
+    assert.equal(stream.status, 200);
+    const reader = stream.body.getReader(); let sse = '';
+    const reading = (async () => { try { while (true) { const { done, value } = await reader.read(); if (done) break; sse += new TextDecoder().decode(value); } } catch {} })();
+    await until(() => sse.includes('Already written'));
+    d.emit('item/agentMessage/delta', { threadId: 'existing', itemId: 'agent-1', delta: ' live output' });
+    await until(() => sse.includes(' live output'));
+    d.emit('', { threadId: 'existing', itemId: 'cmd-1', command: 'example' }, 80);
+    await until(() => sse.includes('permission_request'));
+    const post = async (path, body) => fetch(`${base}/api/${path}`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'existing', provider: 'codex', ...body }) });
+    assert.equal((await post('permission-response', { decision: 'allow', toolUseId: '80' })).status, 200);
+    await until(() => d.requests.some(r => r.id === 80 && r.result?.decision === 'accept'));
+    assert.equal((await post('permission-response', { decision: 'allow', toolUseId: '80' })).status, 409);
+    assert.equal((await post('prompt', { text: 'Glasses input' })).status, 202);
+    assert.ok(d.requests.some(r => r.method === 'turn/steer'));
+(await fetch(`${base}/api/sessions/existing/history?provider=codex`, { headers })).json();
+    assert.ok(history.history.some(m => m.text === 'Desktop question'));
+    assert.equal(output.includes('test-only-token'), false);
+    abort.abort(); await reading;
+    const replayAbort t.after(() => replayAbort.abort());
+    const replay = await fetch(`${base}/api/events?sessionId=existing&provider=codex&needReplay=true`, { headers, signal: replayAbort.signal });
+    const replayReader = replay.body.getReader();
+    let replayText = '';
+    while (!replayText.includes(':cursor')) {
+        const { value } = await replayReader.read();
+        replayText += new TextDecoder().decode(value);
+    }
+    assert.equal((replayText.match(/Already written/g) || []).length, 1);
+    assert.ok(replayText.includes(' live output'));
+    assert.ok(!replayText.includes('permission_request'));
+    replayAbort.abort();
+});
+
+test('stale history cannot erase phone/glasses turns after sending, reconnecting or restarting', async t => {
+    const d = await daemon(t);
+    const stateDir = join(d.dir, 'transcript-state');
+    const { provider, events, client } = providerFor(t, d, { stateDir });
+    await provider.attach('existing');
+    d.complete();
+    await until(() => provider.getStatus('existing').state === 'idle');
+    d.persistedTurns = structuredClone(d.thread.turns);
+    const completed = [];
+    for (const [n, prompt, answer] of [[2, 'Phone test', 'Phone received'], [3, 'Hello?', 'Glasses received']]) {
+        const turn = { id: `turn-${n}`, status: 'inProgress', startedAt: d.thread.turns[0].startedAt + 1, items: [] };
+        d.thread.turns.unshift(turn);
+        d.thread.status = { type: 'active', activeFlags: [] };
+        d.emit('turn/started', { threadId: 'existing', turn });
+        const user = { id: `user-${n}`, type: 'userMessage', content: [{ type: 'text', text: prompt }] };
+        const agent = { id: `agent-${n}`, type: 'agentMessage', text: answer };
+        turn.items.push(user, agent);
+        d.emit('item/started', { threadId: 'existing', turnId: turn.id, item: user });
+        d.emit('item/agentMessage/delta', { threadId: 'existing', turnId: turn.id, itemId: agent.id, delta: answer });
+        d.emit('item/completed', { threadId: 'existing', turnId: turn.id, item: agent });
+        d.complete();
+        completed.push(prompt, answer);
+        await until(() => events.some(m => m.type === 'result' && m.text === answer));
+    }
+    // Both history APIs still show the old desktop turn, as on the real daemon.
+    d.thread.turns = structuredClone(d.persistedTurns);
+    assert.deepEqual(('existing', 10)).slice(-4).map(m => m.text), completed);
+    const eventCount = events.length;
+    await provider.prompt('existing', 'Next glasses input');
+    assert.equal(d.requests.filter(r => r.method === 'thread/resume').length, 1);
+    assert.equal(events.slice(eventCount).some(m => m.type === 'result' || m.text === 'Desktop question'), false);
+    // Complete the mock's new turn, then leave only the stale disk snapshot.
+    d.complete();
+    await until(() => provider.getStatus('existing').state === 'idle');
+    d.thread.turns = structuredClone(d.persistedTurns);
+    client.ws.terminate();
+    await until(() => d.requests.filter(r => r.method === 'thread/resume').length >= 2 && provider.getStatus('existing').connected);
+    assert.deepEqual(('existing', 10)).slice(-4).map(m => m.text), completed);
+    await provider.close();
+    const reopened = providerFor(t, d, { stateDir }).provider;
+    assert.deepEqual((await reopened.getHistory('existing', 10)).slice(-4).map(m => m.text), completed);
+});
+
+test('snapshots preserve item IDs, repeated prompts and a longer live prefix', () => {
+    const transcript = new CodexTranscript();
+    const user = { id: 'u1', type: 'userMessage', content: [{ type: 'text', text: 'Hello?' }] };
+    transcript.merge([{ id: 't1', startedAt: 1, status: 'inProgress', items: [user, { id: 'a1', type: 'agentMessage', text: 'Live response' }] }], true);
+    transcript.merge([{ id: 't1', startedAt: 1, status: 'inProgress', items: [user, { id: 'a1', type: 'agentMessage', text: 'Live' }] }]);
+    transcript.merge([{ id: 't2', startedAt: 2, items: [{ ...user, id: 'u2' }] }], true);
+    assert.deepEqual(transcript.history().map(m => m.text), ['Hello?', 'Live response', 'Hello?']);
+    const partial = new CodexTranscript();
+    partial.merge([{ id: 't1', startedAt: 1, items: [{ id: 'a1', type: 'agentMessage', text: 'Live response' }] }], true);
+    partial.merge([{ id: 't1', startedAt: 1, items: [user, { id: 'a1', type: 'agentMessage', text: 'Live response' }] }]);
+    assert.deepEqual(partial.history().map(m => m.role), ['user', 'assistant']);
+});
+
+test('positional snapshot IDs reconcile with live IDs without collapsing repeated input', () => {
+    const transcript = new CodexTranscript();
+    const user = id => ({ id, type: 'userMessage', content: [{ type: 'text', text: 'Hello?' }] });
+    transcript.merge([{ id: 'turn', items: [user('uuid-1'), user('uuid-2'), { id: 'msg-live', type: 'agentMessage', text: 'Response' }] }], true);
+    transcript.merge([{ id: 'turn', items: [user('item-1'), user('item-2'), { id: 'item-3', type: 'agentMessage', text: 'Response' }] }]);
+    assert.deepEqual(transcript.history().map(m => m.text), ['Hello?', 'Hello?', 'Response']);
+    assert.deepEqual(transcript.snapshot()[0].items.map(i => i.id), ['uuid-1', 'uuid-2', 'msg-live']);
+    const initiallySynthetic = new CodexTranscript();
+    initiallySynthetic.merge([{ id: 'turn', items: [{ id: 'item-1', type: 'agentMessage', text: 'Partial' }] }]);
+    initiallySynthetic.notification('item/completed', { turnId: 'turn', item: { id: 'msg-live', type: 'agentMessage', text: 'Partial response' } });
+    assert.deepEqual(initiallySynthetic.history().map(m => m.text), ['Partial response']);
+});
+
+test('attaching halfway through a positional item streams its remaining text once', t => {
+    const events = [];
+(_id, msg) => events.push(msg), {});
+    session.setThreadId('existing'); t.after(() => session.close());
+    session.hydrate({ status: { type: 'active', activeFlags: [] } }, [{ id: 'turn', status: 'inProgress', items: [
+        { id: 'item-1', type: 'agentMessage', text: 'Partial' },
+    ] }]);
+    session.handleNotification('item/agentMessage/delta', { turnId: 'turn', itemId: 'msg-live', delta: ' response' });
+    session.handleNotification('item/completed', { turnId: 'turn', item: { id: 'msg-live', type: 'agentMessage', text: 'Partial response' } });
+    assert.equal(session.assistantText, 'Partial response');
+    assert.equal(events.filter(m => m.type === 'text_delta').map(m => m.text).join(''), 'Partial response');
+    assert.deepEqual(session.transcript.history().map(m => m.text), ['Partial response']);
+});
+
+test('local recovery reads messages after malformed records without importing system context', () => {
+    const row = payload => JSON.stringify({ timestamp: '2026-09-09T16:46:00Z', type: 'event_msg', payload });
+    const source = [JSON.stringify({ type: 'session_meta', payload: { id: 'existing' } }), '\0\0\0',
+        row({ type: 'task_started', turn_id: 'phone-turn' }),
+        JSON.stringify({ type: 'response_item', payload: { type: 'message', role: 'developer', content: [{ text: 'internal context' }] } }),
+        row({ type: 'item_completed', turn_id: 'phone-turn', item: { id: 'user-id', type: 'UserMessage', content: [{ type: 'text', text: 'Phone test' }] } }),
+        row({ type: 'item_completed', turn_id: 'phone-turn', item: { id: 'agent-id', type: 'AgentMessage', content: [{ type: 'Text', text: 'Received' }] } }),
+        row({ type: 'task_complete', turn_id: 'phone-turn' }),
+    ].join('\n');
+    const recovered = parseRollout(source);
+    assert.equal(recovered.skipped, 1);
+    assert.equal(recovered.id, 'existing');
+    assert.equal(recovered.turns[0].status, 'completed');
+    assert.ok(Number.isFinite(recovered.turns[0].startedAt));
+    const transcript = new CodexTranscript(); transcript.merge(recovered.turns);
+    assert.deepEqual(transcript.history().map(m => m.text), ['Phone test', 'Received']);
+});
+
+test('progress updates do not evict phone/glasses messages from the reload window', () => {
+    const transcript = new CodexTranscript();
+    const user = (id, text) => ({ id, type: 'userMessage', content: [{ type: 'text', text }] });
+    transcript.merge([
+        { id: 'phone', startedAt: 1, items: [user('phone-user', 'Phone test'), { id: 'phone-answer', type: 'agentMessage', text: 'Received' }] },
+        { id: 'glasses', startedAt: 2, items: [user('glasses-user', 'Hello?'), { id: 'glasses-answer', type: 'agentMessage', text: 'Hello' }] },
+        { id: 'fix', startedAt: 3, items: [user('fix-user', 'Fix the history'),
+            ...Array.from({ length: 12 }, (_, n) => ({ id: `update-${n}`, type: 'agentMessage', text: `Progress ${n}` })),
+            user('steering', 'More detail'), { id: 'final', type: 'agentMessage', text: 'Done' }] },
+    ]);
+    const history = transcript.history(10);
+    assert.deepEqual(history.slice(0, 4).map(m => m.text), ['Phone test', 'Received', 'Hello?', 'Hello']);
+    assert.equal(history[5].text, Array.from({ length: 12 }, (_, n) => `Progress ${n}`).join('\n\n'));
+    assert.deepEqual(history.slice(-2).map(m => m.text), ['More detail', 'Done']);
+});
+
+test('reconnect recovers a different turn started on another device during the outage', async t => {
+    const d = await daemon(t); const { provider, client, events } = providerFor(t, d);
+    await provider.attach('existing');
+    client.ws.terminate();
+    d.thread.turns[0].status = 'completed';
+    d.thread.turns.unshift({ id: 'turn-2', status: 'inProgress', items: [
+        { id: 'user-2', type: 'userMessage', content: [{ type: 'text', text: 'Phone follow-up' }] },
+        { id: 'agent-2', type: 'agentMessage', text: 'Response while disconnected' },
+    ] });
+    await until(() => d.requests.filter(r => r.method === 'thread/resume').length >= 2 && provider.getStatus('existing').connected);
+    assert.ok(events.some(m => m.type === 'user_prompt' && m.text === 'Phone follow-up'));
+    assert.ok(events.some(m => m.type === 'text_delta' && m.text === 'Response while disconnected'));
+});
+
+test('pending requests replayed by the daemon are restored after reconnect, never auto-answered', async t => {
+    const d = await daemon(t); const { provider, client } = providerFor(t, d);
+    await provider.attach('existing');
+    d.pending.set(90, { method: '', params: { threadId: 'existing', questions: [{ id: 'q', header: 'Choice', question: 'Continue?', options: [] }] } });
+    client.ws.terminate();
+    await until(() => provider.initialMessages('existing').some(m => m.type === 'user_question' && m.toolUseId === '90'));
+    assert.equal(d.requests.some(r => !r.method && r.id === 90), false);
+    d.pending.delete(90);
+    d.emit('serverRequest/resolved', { threadId: 'existing', requestId: 90 });
+    await until(() => !provider.initialMessages('existing').some(m => m.type === 'user_question'));
+});
+
+test('unknown threads fail without creating a replacement conversation', async t => {
+    const d = await daemon(t); const { provider } = providerFor(t, d);
+    await assert.rejects(provider.attach('does-not-exist'), e => e.statusCode === 404);
+    assert.equal(p.length, 0);
+    assert.equal(d.requests.some(r => r.method === 'thread/start'), false);
+});

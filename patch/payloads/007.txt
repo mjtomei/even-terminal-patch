@@ -1,0 +1,14 @@
+if (typeof sessionId !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(sessionIdconst claudeDir = join(process.env.CLAUDE_CONFIG_DIR ||)b.text === "string" && b.textconst hasSession = id => sessions.has(id) || !!findSessionFile(id    // The phone lists saved sessions before this bridge owns any SDK query.
+        // Opening one on the glasses must not report 404 or start a new owner.
+        retur
+            ? { state:, provider: "claude" }
+            : nullattachtatus =     if (!status)return status;
+    }
+    function initialMessagetatus =     return status ? [{ type: "status", ...status, sessionId }] : []const reducedmsg of if (msg.type !== "user" && text = extractTextContent(msg.message?.content);
+            if (!text.trim())previous = reduced.at(-1);
+            // Tool rounds can produce many assistant updates for one prompt.
+            // Group them before applying the glasses' ten-entry history limit.
+    assistant" && previous?.role === "assistant") previous.text += `\n\n${text}`;
+            else reducedturnCount = Math.max(1, Math.min(limit || MAX_HISTORY_ITEMS, MAX_HISTORY_ITEMS)hasSession,
+        attach,
+        initialMessages,

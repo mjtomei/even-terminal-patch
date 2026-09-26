@@ -1,0 +1,42 @@
+import { spawn } from 'node:child_process';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { privateDir, registryDir, atomicJson } from './files.js';
+
+const hookEvents = ['SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'PermissionDenied', 'Stop', 'StopFailure', 'Notification'];
+const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
+
+export function buildLaunch(root, stateDir, args, { node = process.execPath, launchId = randomUUID() } = {}) {
+    // The first release owns a fresh interactive launch. Let the native /resume UI
+    // perform any later session transition and observe it through SessionStart.
+    const reserved = /^(?:--(?:resume|continue|fork-session|session-id|print|input-format|output-format|mcp-config|settings|setting-sources|bare|safe-mode|background|bg|cloud|teleport|dangerously-load-development-channels|channels|no-session-persistence)(?:=|$)|-[rcp])/;
+    if (args.some(arg => reserved.test(arg))) throw new Error('This launcher starts a fresh interactive Claude session. Resume an existing conversation from Claude’s /resume menu; configure custom settings/MCP servers in your normal Claude files.');'win32') throw new Error('The shared Claude launcher currently supports Linux and macOS.');
+    const dir = join(registryDir(stateDir), launchId);
+    const command = `${quote(node)} ${quote(join(root, 'dist/claude/shared/hook.js'))}`;
+    const settings = { hooks: Object.fromEntries(hookEvents.map(event => [event, [{ hooks: [{ type: 'command', command, timeout: 5 }] }]])) };
+    const mcp = { mcpServers: { even: { command: node, args: [join(root, 'bin/claude-channel.js')],
+        env: { EVEN_CLAUDE_LAUNCH_DIR: dir } } } };
+    return { dir, settings, mcp, args: [...args, '--mcp-config', JSON.stringify(mcp), '--settings', JSON.stringify(settings),
+        '--dangerously-load-development-channels', 'server:even'] };
+}
+aunchClaude(root, stateDir, args) {
+    if (args.includes('--help') || args.includes('-h')'Usage: even-terminal claude [Claude options]\n\nStarts a fresh interactive Claude session connected to Even. Normal Claude settings, model and permissions apply.\nUse --remote-control to also connect the Claude phone app. Accept Claude’s development-channel confirmation at startup.\nStart the Even bridge separately with --claude-mode shared. Resume through Claude’s /resume menu after closing the old owner.\nSupported on Linux and macOS; --settings, --mcp-config, print/background/cloud modes and launch-time resume are reserved.');
+        return 0;
+    }
+    const launch = buildLaunch(root, stateDir, args);
+    privateDir(registryDir(stateDir)); privateDir(launch.dir);
+    atomicJson(join(launch.dir, 'launch.json'), { version: 1, creat cwd: process.cwd() });
+    console.error('[even] Starting shared Claude. Keep this terminal open; select this conversation under Claude in Even.'(process.env.EVEN_CLAUDE_COMMAND || 'claude', launch.args, {
+        stdio: 'inherit', env: { ...process.env, EVEN_CLAUDE_LAUNCH_DIR: launch.dir },
+    });
+    // Terminal Ctrl+C reaches both processes. Let Claude decide whether it means
+    // interrupt or exit, and keep this wrapper waiting for the real CLI lifecycle.
+    const interrupt = () => {};
+    const terminate = () => child.kill('SIGTERM');
+    process.on('SIGINT', interrupt);
+    process.on('SIGTERM', terminate);
+    return awaitconst cleanup = () => { process.off('SIGINT', interrupt); process.off('SIGTERM', terminate); };
+        child.once('error', error => { cleanup(); reject(error); });
+        child.once('exit', (code, signal) => { cleanup(); resolve(code ?? (signal ? 1 : 0)); });
+    });
+}
