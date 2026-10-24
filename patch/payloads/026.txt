@@ -1,1 +1,40 @@
-limit, onTurnsonTurns?.([...page.data].reverse())
+CodexTranscript } from "./transcript.js";remoteStatus = "idle";
+    currentUserPrompt = "";
+    canAcceptDirectInput = true;
+    connected = true;
+    agentTexts = new Map();
+    lastSeenTurnId;
+    hasSnapshot = falsethis.transcript = opts?.transcript ?? new CodexTranscript()remoteStatus === "awaiting" ? "awaiting" :hydrate(thread, turns = []) {
+        this.transcript.merge([...turns].reverse());
+        turns = this.transcript.snapshot().reverse();
+urns[0]?.status === "inProgress" &&!== "idle" ? turns[0] : undefined;
+        const previousTurnId = this.lastSeenTurnId ??const wasActive = this._busy || !!const previousText = this.assistantTextthread.cwd;
+        this.canAcceptDirectInput = thread.canAcceptDirectInput;
+        this.connected = true;
+        this.remoteStatus =this._busy = this.remoteStatus !== "idle"active?.idactive || turns[0];
+        if (latest) {
+            const changedTurn = this.hasSnapshot && latest.id !== previousTlastSeenTurnId = latest.id;
+            this.agentTexts = new Map((latest.items || []).filter(i => i.map(i => [i.id, i.text || ""]));
+[...this.agentTexts.values()].join("er = (latest.items || []).filter(i => i.at(-1UserPrompt = (user?.content || []).map(c => c.text || "").join("");
+latest.startedAt ? latest.startedAt * 1000 :this.turnStartedAt = this.turnStartMs;
+            if (changedTurn || (!this.hasSnapshot && activ    if (this.currentUserPrompt): this.currentUserPrompthis.assistantText)this.assistantText// Recover output missed during a transport outage, without replaying
+            // the prefix already displayed by connected Even clients.
+            if (previousTurnId === latest.id && this.assistantText.startsWith(previousTextsuffix = this.assistantText.slice(previousText.lengthuffix)suffixif (!active && (changedTurn || (wasActive && previousTurnId === latest.id)send({ type: "result", success: lates, text: this.assistantText,Id: this.id, provider: "codex", costUsd: 0, turns: 1, durationMs: latest.durationMs || 0this.hasSnapshot = truthis.statsTimer.unref?.(this.status, sessionId: this.iinitialMessages(includeTextmessages = [];
+        if (includeText && if (this.currentUserPrompt) messages.push: this.currentUserPrompt });
+    ) messages.pushthis.assistantTmessages.pushthis.status, sessionId: this.iconst permissionpermission?.message) messages.push(permission.message);
+        for (const question of this.pendingQuestions) if (question.message) messages.push(question.message);
+        return messages;
+    }
+    isReplayable=== "permission_request") returnome(p => String(p.requestId) === msg.msg.type === "user_question") returnome(p => String(p.requestId) === msg.toolUseIdlose() {
+        this.transcript.flush();
+        // Detach locally. A phone or desktop may still be using this thread.Questions)clear(_decision, firstfirst || (requestId != null && String(first.requestId) !== String(requestId)))"Approval was already resolved or is no longer current"), { statusCode: 409 })hift(): pendingpending, expectedRfirst[0];
+        if (!first || (expectedRequestId != null && String(first.requestId) !== String(expectedRequestId)))"Question was already resolved or is no longer current"), { statusCode: 409 })hift(this.transcript.notification(method, p, this.currentTurnId ?? this.lastSeenTurnId);status/changremoteStatus = codexThreadStatus({ status: p.status });
+p.status?.type === "active"this.status, sessionId: this.i turn can be started from any attached device. && turnId    this.lastSeenthis.agentTex    this.currentUserPrompthis.turnStartedAt = this.turnStartMsthis.remoteStatus = "busy";this.statsTimer.unref?.(isyncAssistantText(p.turnIdcurrentUserPrompt = text}statsTimer.unref?.const old = this.assistantTexitem.texthis.syncAssistantText(p.turif (this.assistantText.startsWith(old) && this.assistantText.length > old.lengththis.assistantText.slice(old.length)[......this.pendingQuestions].some(p => String(p) return;this.questionTimeoutMs > 0 ? :const message = { type: "user_question", questions, }at(-1).message = messagmessageconneclose(error", message: error.message });
+        // Preserve the active turn and displayed prefix for hydration on reconnect.
+    }
+    syncAssistantText( ?? this.lastSeenTurnId) {
+        const turn = this.transcript.snapshot().find(t => t.id === turnId);
+        if (!turn) return;
+        this.agentTexts = new Map(turn.items.filter(i => i.map(i => [i.id, i.text])[...this.agentTexts.values()].join("");remoteStatus = "idle"questionIndep => String(pquestionIndex !== -1) {
+            const [question]questionIndex, 1question[], resolvedExternally: truestatus", state: this.status, sessionId: this.i}this.status, sessionId: this.i> 0 ? : nullpending.message = ;
+        this.send(pending.message

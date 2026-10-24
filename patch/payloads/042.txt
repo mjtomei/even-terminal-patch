@@ -1,1 +1,35 @@
-odex
+readFileSync } from 'node:fs';
+import path from 'node:path', setSessionProviderResolverSharedsharedRemoremotNativeSessionLauncher } from "../claude/remote/launcher.js";
+import { libraryManifest } from "./pageborne-libraryimport { createProviderRouting } from "../provider-routing.js";
+import { installPaperWorkspaces, workspaceCapabilities } from "./pageborne-workspaces.js";
+import { sessionTitleCapabilities, nameNewPaperSession } from "./pageborne-session-titles.js";
+import { conversationCapabilities, installConversationSync } from "./pageborne-conversation.js";
+import { installReaderState } from "./pageborne-reader-stinstallReaderState(router);
+installPaperWorkspaces(router);
+const claudeMode = process.env.EVEN_CLAUDE_MODE || "remote";
+let pageborneClaude = {};
+try { if (STATE_DIR) pageborneClaude.join(STATE_DIR, 'pageborne-claude.json'), 'utf8')); }
+catch (error) { if (error.code !== 'ENOENT') throw error; }laudeMode === "remote" ? createRemoteClaudeProvider(emit, {
+    launcher: createNativeSessionLauncher({ model: process.env.PAGEBORNE_CLAUDE_MODEL || pageborneClaude.model,
+        cli: process.env.PAGEBORNE_CLAUDE_CLI || pageborneClaude.cli }),
+})
+    : claudeMode === "shared" ? createSharedClaudeProvider(emit) :, codexProvider, claudeProvider };
+const providerRouting = createProviderRouting(providerRegistry);
+setSessionProviderResolver(getProvider), sessionId) {
+    return providerRouting.resolve(name, sessionId)installConversationSync(router, getProvider) providerRouting.remember(session.id, resolvedProvider{ ...info, pageborne: { ...workspaceCapabilities(), ...sessionTitleCapabilities(provider), ...conversationCapabilities(provider),
+            ...(provider.prepareSession ? { nativeSessionCreation: 1 } : {}) }Idempotently prepare a native owner before submitting any user question.
+// Retrying this operation cannot duplicate prompts or fork an existing chat.
+router.post('/pageborne/session'try {
+    q.query.provider);
+        if (!provider.prepareSession) return'Native session creation unavailable.' }cwd, title } = req.body || {};
+        const directory = cwd || (await libraryManifest()).directoryprovider.prepareSession({ requestId, cwd: directory, title });
+        providerRouting.remember(result.sessionId, result.provider);
+        res.json(result);
+    } catch (error) { res.status(error.statusCode || 502).json({ error: error.message || 'Could not prepare the shared Claude session.' });, sessionTitle, result = await nameNewPaperSession(targetProvider,
+           , { sessionId, sessionTitle });
+        providerRouting.remember(result.sessionId, result.provider, ...(result.sessionTitle ? { sessionTitle: result.sessionTitle } : {}), sessionIdawait, req.body.toolUseId ?? req.body.request, sessionIdawait, req.body.toolUseId ?? req.body.request, sessionIdawaitelectedName, sessionId);
+    await selectedProvider.attach?.(sessionId);
+    const status = selectedelectedName, sessionId);
+    await selectedProvider.attach?.(sessionId);
+    const status = selected.filter(msg => selectedProvider.isReplayable?.(sessionId, msg) !== false, idCompatibility route: verify the existing daemon; never spawn a second oneawait codexClient.connect();
+    res.json({ started: true, shared: true, endpoint: codexClient.endpoint

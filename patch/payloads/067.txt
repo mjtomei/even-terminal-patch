@@ -1,0 +1,47 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { createNativeSessionLauncher } from '../dist/claude/remote/launcher.js';
+
+test('native creation is opt-in, durable and idempotent across concurrent retries and bridge restarts', async t => {
+    assert.equal(createNativeSessionLauncher(), undefined);
+    const cwd = await mkdtemp(join(tmpdir(), 'pageborne-native-'));
+    t.after(() => rm(cwd, { recursive: true, force: true }));
+    const input = { requestId: randomUUID(), cwd, title: 'A'.repeat(220) + " Paper ' $(touch /tmp/no)" };
+    const calls = []; let owners = [], alive = false;
+    const options = { model: 'claude-fable-5-1', cli: '/a path/claude', stateDir: join(cwd, 'records'), bindings: () => owners,
+        run: async (command, alls.push([command, args]); assert.equal(command, 'tmux');
+            if (args.includes('has-session') && !alive) throw new Error('No session');
+            if (args.includes('new-session')) { alive = true; owners = [{ localId: input.requestId, cwd }]; }
+        } };
+    const launcher = createNativeSessionLauncher(options);
+    const [a, b] = await Promise.all([launcher.prepare(input), launcher.prepare(input)]);
+    assert.deepEqual(a, b); assert.equal(a.model, 'claude-fable-5-1');
+    assert.equal((await createNativeSessionLauncher(options).prepare(input)).sessionId, input.requestId);
+    const launches = calls.filter(([, args]) => args.includes('new-session'));
+    assert.equal(launches.length, 1);
+    assert.ok(launches[0][1].at(-1).includes(" Paper '\\'' $(touch /tmp/no)'"));
+    assert.ok(!launches[0][1].at(-1).includes('--resume'));
+    assert.ok(!launches[0][1].at(-1).includes('--dangerously'));
+    await assert.rejects(launcher.prepare({ ...input, title: 'Other document' }), /another conversation/);
+    owners = []; alive = false;
+    await assert.rejects(createNativeSessionLauncher(options).prepare(input), /has closed/);
+    assert.equal(calls.filter(([, args]) => args.includes('new-session')).length, 1);
+});
+
+test('an ambiguous native launch is never repeated; no prompt is part of creation', async t => {
+    const cwd = await mkdtemp(join(tmpdir(), 'pageborne-native-failed-'));
+    t.after(() => rm(cwd, { recursive: true, force: true }));
+    let launches = 0;
+    const options = { model: 'fable-test', stateDir: cwd, bindings: () => [], run: async (cmd, args) => {
+        if (args.includes('new-session')) launches++; throw new Error('Lost connection');
+    } };
+    const input = { requestId: randomUUID(), cwd, title: 'A paper' };
+    await assert.rejects(createNativeSessionLauncher(options).prepare(input), /Could not start/);
+    await assert.rejects(createNativeSessionLauncher(options).prepare(input), /has closed/);
+    assert.equal(launches, 1);
+    await assert.rejects(createNativeSessionLauncher(options).prepare({ ...input, requestId: '../escape' }), /Invalid/);
+});

@@ -1,0 +1,218 @@
+import { createHash, randomUUID } from 'node:crypto';
+import { constants } from 'node:fs';
+import { mkdir, lstat, realpath, readdir, readFile, open, rename, unlink } from 'node:fs/promises''node:os';
+import path from 'node:path';
+
+export const LIBRARY_CHUNK_BYTES = 768 * 1024;
+const hash = value => createHash('sha256').update(value).digest('hex');
+const locks = new Map();
+async function locked(key, work) {
+  const next = (locks.get(key) || Promise.resolve()).catch(() => {}).then(work); locks.set(key, next);
+  try { return await next; } finally { if (locks.get(key) === next) locks.delete(key); }
+}
+function check(value, message = 'Invalid library request.', status = 400) {
+  if (!value)message), { status });
+}
+function nameOf(name) {
+  check(typeof name === 'string' && !name.startsWith('.') && !/[\x00-\x1f\x7f/\\]/.test(name)
+    && Buffer.byteLength(name) <= 220 && /\.(md|markdown|txt|pdf)$/i.test(name), 'Invalid document filename.');
+  return name;
+}
+function descriptor(file) {
+  nameOf(file?.name);
+  check(/^[a-f0-9]{64}$/.test(file.sha256) && Number.isSafeInteger(file.bytes) && file.bytes >= 0
+    && file.bytes <= (/\.pdf$/i.test(file.name) ? 16 : 4) * 1024 * 1024, 'Document exceeds its size limit or has an invalid checksum.');
+  return { name: file.name, bytes: file.bytes, sha256: file.sha256 };
+}
+async function safeFile(file) {
+  try {
+    const stat = await lstat(file);
+    check(stat.isFile() && !stat.isSymbolicLink() && stat.nlink === 1, 'Linked or non-regular files cannot be synced.');
+    return stat;
+  } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+}
+async function safeDirectory(folder) {
+  await mkdir(folder, { mode: 0o700 }).catch(error => { if (error.code !== 'EEXIST') throw error; });
+  const stat = await lstat(folder);
+  check(stat.isDirectory() && !stat.isSymbolicLink() && await realpath(folder) === folder, 'Unsafe library directory.');
+  return folder;
+}
+async function exclusive(file, bytes) {
+  let handle;
+  try {
+    handle = await open(file, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+    await handle.writeFile(bytes); await handle.sync();or) { if (error.code !== 'EEXIST') throw error; return false; }
+  finally { await handle?.close(); }
+}
+async function readSafe(file, maxBytes = 16 * 1024 * 1024) {
+  const stat = await safeFile(file); if (!stat) return null;
+  check(stat.size <= maxBytes, 'Document exceeds its size limit.');
+  const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const actual = await handle.stat(); check(actual.isFile() && actual.nlink === 1 && actual.ino === stat.ino && actual.size <= maxBytes, 'Document changed during sync.', 409);
+    const bytes = await handle.readFile(); check(bytes.length <= maxBytes, 'Document exceeds its size limit.');
+    const after = await handle.stat(); check(actual.size === after.size && actual.mtimeMs === after.mtimeMs && actual.ctimeMs === after.ctimeMs, 'Document changed during sync.', 409);
+    return bytes;
+  } finally { await handle.close(); }
+}
+async function rootDirectory(options = {}) {
+  let folder = options.libraryDir || process.env.PAGEBORNE_LIBRARY_DIR || path.join(homedir(), '.pageborne/library');
+  if (folder.startsWith('~/')) folder = path.join(homedir(), folder.slice(2));
+  check(path.isAbsolute(folder) && !/[\x00-\x1f]/.test(folder), 'Use an absolute desktop library directory.');
+  await mkdir(folder, { recursive: true, mode: 0o700 }); const root = await realpath(folder);
+  await safeDirectory(path.join(root, '.pageborne'));
+  return root;
+}
+async function subdirectory(root, ...names) {
+  let folder = path.join(root, '.pageborne');
+  for (const name of names) folder = await safeDirectory(path.join(folder, name));
+  return folder;
+}
+async function identity(root) {
+  const file = path.join(root, '.pageborne', 'library.json');
+  return locked(file, async () => {
+    await exclusive(file, JSON.stringify({ version: 1, id: randomUUID() }));
+    const saved = JSON.parse((await readSafe(file, 4096)).toString());
+    check(saved.version === 1 && /^[a-f0-9-]{36}$/.test(saved.id), 'Invalid desktop library identity.');
+    return saved.id;
+  });
+}
+function validContent(name, bytes) {
+  if (/\.pdf$/i.test(name)) check(bytes.subarray(0, 1024).includes(Buffer.from('%PDF-')), 'File does not contain a PDF header.');
+  else {
+    let text; try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { check(false, 'File is not UTF-8 text.'); }
+    check(!text.includes('\0'), 'File contains binary data.');
+  }
+}
+async function documentAt(root, name) {
+  nameOf(name); const bytes = await readSafe(path.join(root, name), (/\.pdf$/i.test(name) ? 16 : 4) * 1024 * 1024);
+  if (!bytes) return null; validContent(name, bytes);
+  return { name, bytes: bytes.length, sha256: hash(bytes), data: bytes };
+}
+async function archive(root, doc) {
+  if (!doc) return;
+  const folder = await subdirectory(root, 'history', hash(doc.name));
+  await locked(folder, async () => {
+    const label = Buffer.from(JSON.stringify({ name: doc.name }) + '\n');
+    if (!await exclusive(path.join(folder, 'name.json'), label)) check((await readSafe(path.join(folder, 'name.json'), 4096)).equals(label), 'Invalid library history.');
+    const file = path.join(folder, doc.sha256 + path.extname(doc.name).toLowerCase());
+    if (!await exclusive(file, doc.data)) check(hash(await readSafe(file)) === doc.sha256, 'Invalid library history.');
+  });
+}
+const metadata = doc => ({ name: doc.name, bytes: doc.bytes, sha256: doc.sha256 })braryIdentity(options) { return identity(await rootDirectory(options)); libraryManifest({ name: selected } = {}, options) {
+  if (selected !== undefined) nameOf(selected);
+  const root = await rootDirectory(options), id = await identity(root), files = [], skippedselected !== undefined ? [selected] : (await readdir(root)).sort()) {
+    if (name.startsWith('.') || !/\.(md|markdown|txt|pdf)$/i.test(name)) continue;
+    try {
+      const doc = await documentAt(root, name); if (!doc) continue;
+      await archive(root, doc); files.push(metadata(doc));
+    } catch (error) { skipped.push({ name, reason: error.status ? error.message : 'Could not read this file.' }); }
+  }
+  return { version: 1, id, directory: root, files, skipped };
+}
+async function uploadLocation(file, options) {
+  file = descriptor(file); const root = await rootDirectory(options);
+  return { root, file, target: path.join(await subdirectory(root, 'uploads'), file.sha256) }libraryUploadStatus({ file }, options) {
+  const upload = await uploadLocation(file, options); file = upload.file;
+  return locked(upload.target, async () => {
+    const complete = await readSafe(upload.target);
+    if (complete && hash(complete) === file.sha256 && complete.length === file.bytes) return { offset: file.bytes };
+    const partial = await safeFile(upload.target + '.part');
+    if (partial?.size >= file.bytes) { await unlink(upload.target + '.part'); return { offset: 0 }; }
+    return { offset: partial?.size || 0 };
+libraryUploadChunk({ file, offset, data }, options) {
+  const upload = await uploadLocation(file, options); file = upload.file;
+  check(typeof data === 'string' && data.length <= LIBRARY_CHUNK_BYTES * 4 / 3 && /^[A-Za-z0-9+/]*={0,2}$/.test(data), 'Invalid file chunk.');
+  const bytes = Buffer.from(data, 'base64');
+  check(bytes.toString('base64') === data && bytes.length && bytes.length <= LIBRARY_CHUNK_BYTES && Number.isSafeInteger(offset)
+    && offset >= 0 && offset + bytes.length <= file.bytes, 'Invalid file chunk.');
+  return locked(upload.target, async () => {
+    const complete = await readSafe(upload.target);
+    if (complete && hash(complete) === file.sha256 && complete.length === file.bytes) return { offset: file.bytes };
+    const part = upload.target + '.part', before = await safeFile(part);
+    check(offset <= (before?.size || 0), 'File chunk arrived out of order.');
+    const handle = await open(part, constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
+    try {
+      const stat = await handle.stat(); check(stat.isFile() && stat.nlink === 1 && stat.size === (before?.size || 0), 'Unsafe partial file.');
+      if (offset < stat.size) {
+        const prior = Buffer.alloc(bytes.length); const read = await handle.read(prior, 0, bytes.length, offset);
+        check(read.bytesRead === bytes.length && prior.equals(bytes), 'Conflicting file chunk.');
+      } else {
+        for (let written = 0; written < bytes.length;) {
+handle.write(bytes, written, bytes.length - written, offset + written);
+          check(result.bytesWritten > 0, 'File write did not complete.'); written += result.bytesWritten;
+        }
+      }
+      await handle.sync();
+    } finally { await handle.close(); }
+    const size = (await safeFile(part)).size;
+    if (size === file.bytes) {
+      if (hash(await readSafe(part)) !== file.sha256) { await unlink(part); check(false, 'File checksum mismatch.'); }
+      await rename(part, upload.target);
+    }
+    return { offset: size };
+  });
+}
+function expectHash(current, expected) {
+  check(expected === null || /^[a-f0-9]{64}$/.test(expected), 'A previous checksum is required.');
+  check((current?.sha256 || null) === expected, 'Document changed on the desktop. Sync again to keep both copies.', 409libraryCommit({ file, expected }, options) {
+  const upload = await uploadLocation(file, options); file = upload.file;
+  return locked(path.join(upload.root, file.name), async () => {
+    const current = await documentAt(upload.root, file.name);
+    if (current?.sha256 === file.sha256) return metadata(current); // Retry after a lost acknowledgement.
+    expectHash(current, expected);
+    const bytes = file.bytes ? await readSafe(upload.target) : Buffer.alloc(0);
+    check(bytes && bytes.length === file.bytes && hash(bytes) === file.sha256, 'Upload is incomplete.'); validContent(file.name, bytes);
+    await archive(upload.root, current); await archive(upload.root, { ...file, data: bytes });
+    const temporary = path.join(path.dirname(upload.target), randomUUID() + '.commit');
+    await exclusive(temporary, bytes);
+    try {
+      expectHash(await documentAt(upload.root, file.name), expected);
+      await rename(temporary, path.join(upload.root, file.name));
+    } finally { await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
+    return file;
+libraryRead({ name, sha256, offset = 0 }, options) {
+  const root = await rootDirectory(options), doc = await documentAt(root, name);
+  expectHash(doc, sha256); check(doc && Number.isSafeInteger(offset) && offset >= 0 && offset <= doc.bytes, 'Invalid download offset.');
+  await archive(root, doc);
+  return { ...metadata(doc), offset, data: doc.data.subarray(offset, offset + LIBRARY_CHUNK_BYTES).toString('base64') }libraryRemove({ name, expected }, options) {
+  nameOf(name); const root = await rootDirectory(options);
+  return locked(path.join(root, name), async () => {
+    const current = await documentAt(root, name); if (!current) return { removed: true };
+    expectHash(current, expected); await archive(root, current);
+    expectHash(await documentAt(root, name), expected); await unlink(path.join(root, name));
+    return { removed: true };
+  });
+}
+
+// Ask uses this same original and stores derived versions under the library.
+// No client-supplied absolute path is used as an upload destination.braryOriginal(library, options) {
+  const root = await rootDirectory(options), doc = await documentAt(root, library?.name);
+  expectHash(doc, library.sha256); check(doc, 'Sync the document before asking.');
+  return { ...metadata(doc), path: path.join(root, doc.name), root }libraryExportDirectory(library, options) {
+  if (library?.snapshot === true) {
+    const root = await rootDirectory(options);
+    nameOf(library.name); check(/^[a-f0-9]{64}$/.test(library.sha256));
+    check(library.id === await identity(root), 'The desktop library has changed.', 409);
+    return subdirectory(root, 'reflow', hash(library.name));
+  }
+  const original = await libraryOriginal(library, options);
+  return subdirectory(original.root, 'reflow', hash(original.name));
+}
+// Manifest reads and library uploads archive their exact bytes. Reuse that
+// saved version when available; never read the mutable root as an Ask file.brarySnapshotBytes(library, options) {
+  await libraryExportDirectory(library, options);
+  const root = await rootDirectory(options), folder = await subdirectory(root, 'history', hash(library.name));
+  const bytes = await readSafe(path.join(folder, library.sha256 + path.extname(library.name).toLowerCase()));
+  if (bytes) check(hash(bytes) === library.sha256, 'Invalid library history.');
+  return bytes;
+}LibrarySync(router, options = {}) {
+  router.get('/pageborne/library'try { res.json(await libraryManifest({ name: req.query.name }, options)); }
+    catch {'Could not open the desktop library.' }); }
+  });
+  for (const [route, ac{ status: libraryUploadStatus, chunk: libraryUploadChunk, commit: libraryCommit, read: libraryRead, remove: libraryRemove })) {
+    router.post(`/pageborne/library/${route}`  try { res.json(await action(req.body || {}, options)); }
+      catch (error) { res.status(error.status || 400).json({ error: error.status ? error.message : 'Could not sync this document. Check desktop storage permissions.' }); }
+    });
+  }
+}

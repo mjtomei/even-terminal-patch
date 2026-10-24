@@ -1,42 +1,56 @@
-import { spawn } from 'node:child_process';
-import { join } from 'node:path';
+import { openSync, closeSync, readSync, fstatSync, readFileSync, writeFileSync, renameSync, mkdirSync, lstat'node:fs';
+import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { privateDir, registryDir, atomicJson } from './files.js';
 
-const hookEvents = ['SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'PermissionDenied', 'Stop', 'StopFailure', 'Notification'];
-const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
-
-export function buildLaunch(root, stateDir, args, { node = process.execPath, launchId = randomUUID() } = {}) {
-    // The first release owns a fresh interactive launch. Let the native /resume UI
-    // perform any later session transition and observe it through SessionStart.
-    const reserved = /^(?:--(?:resume|continue|fork-session|session-id|print|input-format|output-format|mcp-config|settings|setting-sources|bare|safe-mode|background|bg|cloud|teleport|dangerously-load-development-channels|channels|no-session-persistence)(?:=|$)|-[rcp])/;
-    if (args.some(arg => reserved.test(arg))) throw new Error('This launcher starts a fresh interactive Claude session. Resume an existing conversation from Claude’s /resume menu; configure custom settings/MCP servers in your normal Claude files.');'win32') throw new Error('The shared Claude launcher currently supports Linux and macOS.');
-    const dir = join(registryDir(stateDir), launchId);
-    const command = `${quote(node)} ${quote(join(root, 'dist/claude/shared/hook.js'))}`;
-    const settings = { hooks: Object.fromEntries(hookEvents.map(event => [event, [{ hooks: [{ type: 'command', command, timeout: 5 }] }]])) };
-    const mcp = { mcpServers: { even: { command: node, args: [join(root, 'bin/claude-channel.js')],
-        env: { EVEN_CLAUDE_LAUNCH_DIR: dir } } } };
-    return { dir, settings, mcp, args: [...args, '--mcp-config', JSON.stringify(mcp), '--settings', JSON.stringify(settings),
-        '--dangerously-load-development-channels', 'server:even'] };
-}
-aunchClaude(root, stateDir, args) {
-    if (args.includes('--help') || args.includes('-h')'Usage: even-terminal claude [Claude options]\n\nStarts a fresh interactive Claude session connected to Even. Normal Claude settings, model and permissions apply.\nUse --remote-control to also connect the Claude phone app. Accept Claude’s development-channel confirmation at startup.\nStart the Even bridge separately with --claude-mode shared. Resume through Claude’s /resume menu after closing the old owner.\nSupported on Linux and macOS; --settings, --mcp-config, print/background/cloud modes and launch-time resume are reserved.');
-        return 0;
+export const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+export const fail = (message, statusCode = 409) =>essage), { statusCode });
+export const registryDir = stateDir => join(resolve(stateDir), 'claude-channels');
+export function privateDir(dir) {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const info = lstatSync(dir);
+    if (!info.isDirectory() || (info.mode & 0o077) || (process.getuid && info.uid !== process.getuid())) {Expected a private, user-owned directory: ${dir}`);
     }
-    const launch = buildLaunch(root, stateDir, args);
-    privateDir(registryDir(stateDir)); privateDir(launch.dir);
-    atomicJson(join(launch.dir, 'launch.json'), { version: 1, creat cwd: process.cwd() });
-    console.error('[even] Starting shared Claude. Keep this terminal open; select this conversation under Claude in Even.'(process.env.EVEN_CLAUDE_COMMAND || 'claude', launch.args, {
-        stdio: 'inherit', env: { ...process.env, EVEN_CLAUDE_LAUNCH_DIR: launch.dir },
-    });
-    // Terminal Ctrl+C reaches both processes. Let Claude decide whether it means
-    // interrupt or exit, and keep this wrapper waiting for the real CLI lifecycle.
-    const interrupt = () => {};
-    const terminate = () => child.kill('SIGTERM');
-    process.on('SIGINT', interrupt);
-    process.on('SIGTERM', terminate);
-    return awaitconst cleanup = () => { process.off('SIGINT', interrupt); process.off('SIGTERM', terminate); };
-        child.once('error', error => { cleanup(); reject(error); });
-        child.once('exit', (code, signal) => { cleanup(); resolve(code ?? (signal ? 1 : 0)); });
-    });
+    return dir;
+}
+export function atomicJson(path, value) {
+    const temporary = `${path}.${randomUUID()}.tmp`;
+    writeFileSync(temporary, JSON.stringify(value) + '\n', { mode: 0o600, flag: 'wx' });
+    renameSync(temporary, path);
+}
+export function readJson(path) { return'utf8')); }
+export function listEndpoints(stateDir) {
+    const root = registryDir(stateDir);
+    let dirs;
+    try { dirs = readdirSync(root); } catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+    const endpoindir of dirs.filter(uuid)cord = readJson(join(root, dir, 'endpoint.json'));
+            if (!uuid(record.instanceId) || !uuid(record.sessionId) || !uuid(record.generation) ||
+                !Number.isInteger(record.port) || record.port < 1 || record.port > 65535 ||
+                !/^[a-f0-9]{64}$/.test(record.token) || !Number.isInteger(record.pid) || record.pid < 1) continue;
+            process.kill(record.pid, 0); // Stale records never start or revive an owner.
+            endpoints.push({ ...record, url: `http://127.0.0.1:${record.port}` });
+        } catch { /* A dead owner, partial registration, or stale directory is unavailable. */ }
+    }
+    return endpoints;
+}
+
+/** Incremental UTF-8 JSONL reader. Retain incomplete lines and skip corrupt records. */
+export class JsonlReader {
+    offset = 0;
+    identity = null;
+    pending = Buffer.alloc(0);
+    dropping = false;
+    constructor(path, maxLineBytes = 8 * 1024 * 1024) { this.path = path; this.maxLineBytes = maxLineBytes; }
+    read() {
+        let fd;
+        try { fd = openSync(this.path, 'r'); } catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+        const records = []stat = fstatSync(fd);
+            if (!stat.isFile()) throw new Error('Expected a regular JSONL file');
+            const identity = `${stat.dev}:${stat.ino}`;
+            if (this.identity !== identity || stat.size < this.offsetidentity = identity; this.offset = 0; this.pending = Buffer.alloc(0); this.dropping = falsconst chunk = Buffer.alloc(64 * 1024);
+            // Read only the size observed at entry, even if another process keeps writing.
+            while (this.offset < stat.sizeunt = readSync(fd, chunk, 0, Math.min(chunk.length, stat.size - this.offset), this.offse!count)this.offset += countdata = Buffer.concat([this.pending, chunk.subarray(0, count)]);
+                let start = 0, end;
+                while ((end = data.indexOf(10, start)) !== -1!this.dropping && end - start <= this.maxLineBytes        const record = JSON.parse(data.subarray(start, end).toString('utf8')if (record && typeof record === 'object' && !Array.isArray(record)) records.push(recor    } catch { /* malformed line */ }    this.dropping    start = end + 1 = Buffer.from(data.subarray(start)ending.length > this.maxLineBytes || this.droppthis.pending = Buffer.alloc(0); this.dropping finally { closeSync(fd); }
+        return records;
+    }
 }

@@ -1,20 +1,14 @@
-'node:fs''node:os';
-import { join } from 'node:path';
-import { remoteId } from './client.js';
-
-const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
-// Native records are advisory. Verify both registrations against the running
-// process's start identity before correlating a local UUID with a cloud ID.
-export function localBindings({ configDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'),
-    configPath = process.env.CLAUDE_CONFIG_DIR ? join(configDir, '.claude.json') : join(homedir(), '.claude.json'),
-    processStart = pid => process.platform === 'linux' ? readFileSync(`/proc/${pid}/stat`, 'utf8').split(/\) /).at(-1).split(' ')[19] : undefined } = {}) {
-    let placeholders;
-    try { placeholdersconfigPath, 'utf8')).replBridgePlaceholders || {}; } catch { return []; }
-    const bindings = [];
-    for (const [cloudId, record] of Object.entries(placeholders)) {
-        if (!remoteId(cloudId) || !Number.isInteger(record.pid) || record.pid <= 0 || typeof record.procStart !== 'string') continuesessionjoin(configDir, 'sessions', `${record.pid}.json`), 'utf8').pid !== record.pid || session.procStart !== record.procStart || processStart(record.pid) !== record.procStart || !uuid(session.sessionId)) continue;
-            bindings.push({ cloudId, localId: session.sessionId, pid: record.pid, procStart: record.procStart, cwd: session.cwd || '' });
-        } catch { /* Missing or stale local records never start an owner. */ }
+if (typeof sessionId !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(sessionIdconst claudeDir = join(process.env.CLAUDE_CONFIG_DIR ||)b.text === "string" && b.textconst hasSession = id => sessions.has(id) || !!findSessionFile(id    // The phone lists saved sessions before this bridge owns any SDK query.
+        // Opening one on the glasses must not report 404 or start a new owner.
+        retur
+            ? { state:, provider: "claude" }
+            : nullattachtatus =     if (!status)return status;
     }
-    return bindings;
-}
+    function initialMessagetatus =     return status ? [{ type: "status", ...status, sessionId }] : []const reducedmsg of if (msg.type !== "user" && text = extractTextContent(msg.message?.content);
+            if (!text.trim())previous = reduced.at(-1);
+            // Tool rounds can produce many assistant updates for one prompt.
+            // Group them before applying the glasses' ten-entry history limit.
+    assistant" && previous?.role === "assistant") previous.text += `\n\n${text}`;
+            else reducedturnCount = Math.max(1, Math.min(limit || MAX_HISTORY_ITEMS, MAX_HISTORY_ITEMS)hasSession,
+        attach,
+        initialMessages,

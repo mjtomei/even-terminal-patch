@@ -1,0 +1,48 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, readFile, rm, symlink, mkdir, writeFile, link } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { paperFilesStatus, paperFileChunk } from '../dist/routes/pageborne-files.js';
+import { paperWorkspace } from '../dist/routes/pageborne-workspaces.js';
+const hash = value => createHash('sha256').update(value).digest('hex');
+const paperFile = async (name, text) => ({ name, bytes: Buffer.byteLength(text), sha256: hash(text) });
+const meta = files => files;
+
+test('file transfer rejects traversal, oversized payloads, bad hashes, symlinks and hardlinks without overwriting other files', async () => {
+  const baseDir = await mkdtemp(path.join(tmpdir(), 'pageborne-files-safety-')); const options = { baseDir };
+  try {
+    const file = await paperFile('original.md', 'text'); const desc = meta([file])[0];
+    const request = { paperId: 'paper', file: desc, offset: 0, data: Buffer.from('text').toString('base64') };
+    await assert.rejects(paperFileChunk({ ...request, file: { ...desc, name: '../../outside' } }, options));
+    await assert.rejects(paperFileChunk({ ...request, file: { ...desc, bytes: 17 * 1024 * 1024 } }, options));
+    await assert.rejects(paperFileChunk({ ...request, data: 'dGV4d===' }, options));
+    await assert.rejects(paperFileChunk({ ...request, data: Buffer.from('oops').toString('base64') }, options), /checksum/);
+    const folder = path.join(baseDir, `paper-${hash('paper').slice(0, 24)}`, 'files');
+    const partial = path.join(folder, `${desc.sha256}-${desc.name}.part`); const outside = path.join(baseDir, 'outside'); await writeFile(outside, 'Keep this');
+    await symlink(outside, partial); await assert.rejects(paperFileChunk(request, options)); await rm(partial);
+    await link(outside, partial); await assert.rejects(paperFileChunk(request, options)); await rm(partial);
+    assert.equal(await readFile(outside, 'utf8'), 'Keep this');
+    await rm(folder, { recursive: true }); await mkdir(path.join(baseDir, 'elsewhere')); await symlink(path.join(baseDir, 'elsewhere'), folder);
+    await assert.rejects(paperFileChunk(request, options), /Unsafe/);
+  } finally { await rm(baseDir, { recursive: true, force: true }); }
+});
+
+test('workspace uploads reject another paper/session, arbitrary paths, missing identities and symlinked folders', async t => {
+  const home = await mkdtemp(path.join(tmpdir(), 'pageborne-workspace-files-safety-')); t.after(() => rm(home, { recursive: true, force: true }));
+  const files = await Promise.all([paperFile('original.md', 'Text'), paperFile('reflow.md', 'Text'), paperFile('index.json', '{}')]);
+  const workspaceId = 'session-one', paperId = 'paper'; const { cwd } = await paperWorkspace({ paperId, workspaceId }, { home });
+  const body = { paperId, files: meta(files), workspace: { cwd, workspaceId } };
+  await paperFilesStatus(body);
+  await assert.rejects(paperFilesStatus({ ...body, paperId: 'another-paper' }), /Invalid paper workspace/);
+  await assert.rejects(paperFilesStatus({ ...body, workspace: { cwd, workspaceId: 'another-session' } }), /Invalid paper workspace/);
+  await assert.rejects(paperFilesStatus({ ...body, workspace: { cwd: home, workspaceId } }), /Invalid paper workspace/);
+  await rm(path.join(cwd, 'paper.json'));
+  await assert.rejects(paperFilesStatus(body), /Missing paper workspace/);
+  await writeFile(path.join(cwd, 'paper.json'), JSON.stringify({ paperId: 'another-paper', workspaceId }));
+  await assert.rejects(paperFilesStatus(body), /identity mismatch/);
+  await rm(cwd, { recursive: true }); await mkdir(path.join(home, 'elsewhere')); await symlink(path.join(home, 'elsewhere'), cwd);
+  await assert.rejects(paperFilesStatus(body), /Unsafe paper workspace/);
+});
+

@@ -1,98 +1,30 @@
-import { randomUUID } from 'node:crypto';
-import { listEndpoints, fail } from './files.js''../../routes/events.js';
+#!/usr/bin/env node
+// This hook only records observations. It never returns a permission decision.
+import { appendFileSync } from 'node:fs';
+import { join } from 'node:path''node:url';
+import { privateDir } from './files.js';
 
-export function createSharedClaudeProvider(emit, { stateDirSTATE_DIR,
-    pollMs = 500, timeoutMs = 3000, idleTtlMs = 180000, endpoints = () => listEndpoints(stateDir) } = {}) {
-    const entries = new Map();
-    let closed = false;
-    async function request(endpoint, path, body) {
-        let response, resultresponse = await fetch(`${endpoint.url}${path}`body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${endpoint.token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
-                body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(timeoutMs), redirect: 'error'sult = await response.json();
-        } catch {
-            throw fail(body ? 'Claude connection was lost. Delivery is unknown; this message was not automatically retried.' : 'Claude channel is disconnected. Keep its terminal open and try again.', 503response.ok) throw fail(result.error || 'Claude channel request failed', response.statu;
+export function recordHook(dir, input) {
+    if (!input || typeof input !== 'object') return;
+    // Subagents share settings; their events must not rebind or stop the main session.
+    if (input.agent_id) return;
+    const event = { recordedAt: Date.now() };
+    for (const key of ['hook_event_name', 'session_id', 'transcript_path', 'cwd', 'source', 'reason',
+        'model', 'session_title', 'tool_name', 'tool_use_id', 'notification_type', 'title', 'message']) {
+        if (typeof input[key] === 'string') event[key] = input[key].slice(0, 16000);
     }
-    function findEndpoint(id) {
-        const matches = endpoints().filter(endpoint => endpoint.sessionId === id);
-        if (!matches.length) throw fail('This session is not connected to Even. Start Claude with “even-terminal claude” and select that session. Saved sessions are never resumed automatically.', 409);
-        if (matches.length !== 1) throw fail('More than one Claude process owns this session. Close the duplicate before using Even.');
-        return matches[0]Message = entry => ({ type: 'status', state: entry.snapshot.status, sessionId: entry.id, provider: 'claude' });
-    function sync(entry, snapshot) {
-        if (snapshot.sessionId !== entry.id || !snapshot.ready || snapshot.generation !== entry.endpoint.generation) throw fail('Claude changed conversations; select the current session again.');
-        const sameInstance = entry.snapshot?.instanceId === snapshot.instanceId && entry.snapshot?.generation === snapshot.generation;
-        const hadSnapshot = !!entry.snapshot;
-        const prior = entry.snapshot;
-        const reconnected = hadSnapshot && !entry.connected;
-        entry.snapshot = snapshot; entry.connected = true;
-        if (hadSnapshot && sameInstance && entry.cursor >= (snapshot.events[0]?.id ?? snapshot.sequence + 1) - 1event of snapshot.events) if (event.id > entry.cursor) emit(entry.id, event.message);
-            if (reconnected) emit(entry.id, statusMessage(entry));
-        } else if (hadSnapshot) {
-            // A gap/restarted channel recovers current state, without resending any input.snapshot.turn;
-            if (turn.id !== prior.turn.idturn.prompt) emit(entry.id, { type: 'user_prompt', text: turn.prompturn.text) emit(entry.id, { type: 'text_delta', text: turn.text });
-            } else if (turn.text.startsWith(prior.turn.text) && turn.text.length > prior.turn.text.length) {
-                emit(entry.id, { type: 'text_delta', text: turn.text.slice(prior.turn.text.length)mit(entry.id, statusMessage(entry)message of snapshot.pending) emit(entry.id, message);
+    privateDir(dir);
+    appendFileSync(join(dir, 'hooks.jsonl'), JSON.stringify(event) + '\n', { mode: 0o600 });
+}
+
+if (process.argv[1] ===  {
+    try {
+        let input = '';
+chunk of process.stdin) {
+            input += chunk;
+            if (input.length > 16 * 1024 * 1024) throw new Error('Hook input too large');
         }
-        entry.cursor = snapshot.sequencerefresh(entry) {
-        if (entry.refreshing) return entry.refreshing;
-        // Start on a microtask: synchronous discovery errors must not leave a
-        // rejected promise permanently assigned after the finally block runs.
-        entry.refreshing = Promise.resolve().thenentry.endpoint = findEndpoint(entry.it querysessionId: entry.id, generation: entry.endpoint.generation }snapshot = await request(entry.endpoint, `/snapshot?${query}`);
-                if (closed || entries.get(entry.id) !== entry)ync(entry, snapshot);
-            } catch (errontry.connected) emit(entry.id, { type: 'error', message: erroentry.connecthrow error;
-            } finally { entry.refreshing = null; }entry.refreshingattach(id) {
-        if (closed) throw fail('Bridge is shutting down', 503);
-        if (typeof id !== 'string' || !id) throw fail('Select a session started with even-terminal claude.', 400);
-        let entry = entries.get(id);
-        if (!entry) {
-            const endpoint = findEndpoint(id);
-            entry = { id, endpoint, connected: false, snapshot: null, cursor: 0, refreshing: null, lastUsed: Date.now() };
-            entries.set(id, entry);
-        }
-        entry.lastUsed = Date.now();
-        if (!entry.connected) await refresh(entry);
-        return entry;
-    }
-    const t{entrieif (Date.now() - entry.lastUsed > idleTtlMs && !sessionHasClients(entry.id)) { entries.delete(entry.id); continue; }
-            void refresh(entry).catch(() => {});
-        }
-    }, pollMs);
-    timer.unref(hasSession: id => !!entries.get(id)?.snapshot || endpoints().some(endpoint => endpoint.sessionId === id),
-        attach,
-        async detach(id) { entries.delete(id); },
-        async    const candidates = endpoints().filter(e => !cwd || e.cwd === cwd);
-            const duplicateIds = new Set(candidates.filter((e, i) => candidates.findIndex(other => other.sessionId === e.sessionId) !== i).map(e => e.sessionId));s = await Promise.allSettled(candidates.filter(e => !duplicateIds.has(e.sessionId)).map(async endpointquerysessionId: endpoint.sessionId, generation: endpoint.generation }snapshot = await request(endpoint, `/snapshot?${query}`snapshot.ready || snapshot.sessionId !== endpoint.sessionId) throw fail('Not ready' { id: snapshot.sessionId, title: (snapshot.title || snapshot.turn.prompt || 'Shared Claude'endpoint.timestamp).toISOString(), cwd: snapshot.cwd || '', provider: 'claude', status: snapshot.status };
-            })s.filter(r => r.status === 'fulfilled').map(r => r.value).sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, Math.max(1, Math.min(limit || 10, 100)));
-        },
-        async getInfo() {
-            const live = endpoints(account: {}, model: live[0]?.model || 'Claude (shared terminal)', version: 'Claude channel', provider: 'claude' };
-        },
-        async getSessionStatus(id) { const entry = await attach(id); await refresh(entry); return entry.snapshot.status; },
-        getStatus(intry = entries.get(id);
-            return entry?.snapshot ? { state: entry.snapshot.status, provider: 'claude', connected: entry.connected } : null;
-        },
-        async getHistory(id, limit) {
-            let entry;
-            try { entry = await attach(id); await refresh(entry);or) { entry = entries.get(id); if (!entry?.snapshot) throw error; }
-            return entry.snapshot.history.slice(-Math.max(1, Math.min(limit || 10, 10)));
-        },
-        async prompt(id, text) {await attach(id); await refresh(entry);request(entry.endpoint, '/prompt', { sessionId: id, generation: entry.snapshot.generation, text, promptId: randomUUID() });
-            await refresh(entry).catch(() =>'claude', delivery: result.delivery };
-        },
-        async respondPermission(id, decision, requestntry = await attach(id); await refresh(entry);
-            await request(entry.endpoint, '/permission', { sessionId: id, generation: entry.snapshot.generation, decision, requestId });
-            await refresh(entry).catch(() => {});
-        },
-        async respondQuestion() { throw fail('Answer Claude’s questions in its terminal or native phone Remote Control. Channels do not support question responses.', 501); },
-        async interrupt() { throw fail('Interrupt Claude from its terminal or native phone Remote Control. Channels do not support interrupt.', 501); },
-        initialMessages(id, includeText = trentry = entries.get(id);
-            if (!entry?.snapshot || !entry.connected) return [][];
-            if (includeTextntry.snapshot.turn.prompt) messages.push({ type: 'user_prompt', text: entry.snapshot.turn.prompentry.snapshot.turn.text) messages.push({ type: 'text_delta', text: entry.snapshot.turn.textmessages.push(statusMessage(entry), ...entry.snapshot.pending);
-            return messages;
-        },
-        isReplayable(id, message) {
-            if (message.type === 'user_question') return false;
-            if (message.type !== 'permission_request') return truentries.get(id);
-            return !!entry?.connected && entry.snapshot.pending.some(p => p.toolUseId === message.toolUseId);
-        },
-        async close() { closed = true; clearInterval(timer); entries.clear(); },
-    };
+        recordHook(process.env.EVEN_CLAUDE_LAUNCH_DIR, JSON.parse(input));
+    } catch (error) { process.stderr.write(`[even-channel hook] ${error.message}\n`); }
+    // Observability must never block the user's Claude turn.
 }

@@ -1,11 +1,11 @@
 {
   "baseline_version": "0.8.1",
-  "output_files": 65,
-  "copy_bytes": 171202,
-  "insert_bytes": 242156,
+  "output_files": 81,
+  "copy_bytes": 174182,
+  "insert_bytes": 333099,
   "operation_counts": {
-    "insert": 1233,
-    "copy": 1378
+    "insert": 1365,
+    "copy": 1495
   },
   "literal_exact_match_check_bytes": 24,
   "literal_exact_match_check": "passed",
@@ -15,6 +15,11 @@
       "path": ".gitignore",
       "copy_bytes": 0,
       "insert_bytes": 38
+    },
+    {
+      "path": "CHANGELOG.md",
+      "copy_bytes": 29,
+      "insert_bytes": 1987
     },
     {
       "path": "NOTICE.md",
@@ -29,7 +34,7 @@
     {
       "path": "README.md",
       "copy_bytes": 29,
-      "insert_bytes": 3497
+      "insert_bytes": 4166
     },
     {
       "path": "UPSTREAM-README.md",
@@ -62,14 +67,19 @@
       "insert_bytes": 3574
     },
     {
+      "path": "dist/claude/remote/launcher.js",
+      "copy_bytes": 197,
+      "insert_bytes": 3964
+    },
+    {
       "path": "dist/claude/remote/provider.js",
-      "copy_bytes": 2377,
-      "insert_bytes": 12282
+      "copy_bytes": 2427,
+      "insert_bytes": 12637
     },
     {
       "path": "dist/claude/remote/transcript.js",
-      "copy_bytes": 792,
-      "insert_bytes": 3501
+      "copy_bytes": 874,
+      "insert_bytes": 4449
     },
     {
       "path": "dist/claude/session.js",
@@ -113,8 +123,8 @@
     },
     {
       "path": "dist/codex/app-server.js",
-      "copy_bytes": 3326,
-      "insert_bytes": 3154
+      "copy_bytes": 3325,
+      "insert_bytes": 3285
     },
     {
       "path": "dist/codex/memory.js",
@@ -123,13 +133,13 @@
     },
     {
       "path": "dist/codex/provider.js",
-      "copy_bytes": 3012,
-      "insert_bytes": 6353
+      "copy_bytes": 3286,
+      "insert_bytes": 7433
     },
     {
       "path": "dist/codex/rollout.js",
-      "copy_bytes": 360,
-      "insert_bytes": 2547
+      "copy_bytes": 341,
+      "insert_bytes": 4128
     },
     {
       "path": "dist/codex/session.js",
@@ -143,8 +153,8 @@
     },
     {
       "path": "dist/codex/storage.js",
-      "copy_bytes": 5004,
-      "insert_bytes": 49
+      "copy_bytes": 4977,
+      "insert_bytes": 115
     },
     {
       "path": "dist/codex/summarize.js",
@@ -213,13 +223,43 @@
     },
     {
       "path": "dist/routes/core.js",
-      "copy_bytes": 10425,
-      "insert_bytes": 1193
+      "copy_bytes": 10693,
+      "insert_bytes": 3266
     },
     {
       "path": "dist/routes/events.js",
       "copy_bytes": 3305,
       "insert_bytes": 1290
+    },
+    {
+      "path": "dist/routes/pageborne-conversation.js",
+      "copy_bytes": 237,
+      "insert_bytes": 3386
+    },
+    {
+      "path": "dist/routes/pageborne-files.js",
+      "copy_bytes": 189,
+      "insert_bytes": 10668
+    },
+    {
+      "path": "dist/routes/pageborne-library.js",
+      "copy_bytes": 544,
+      "insert_bytes": 13393
+    },
+    {
+      "path": "dist/routes/pageborne-reader-state.js",
+      "copy_bytes": 368,
+      "insert_bytes": 5974
+    },
+    {
+      "path": "dist/routes/pageborne-session-titles.js",
+      "copy_bytes": 83,
+      "insert_bytes": 1408
+    },
+    {
+      "path": "dist/routes/pageborne-workspaces.js",
+      "copy_bytes": 136,
+      "insert_bytes": 3143
     },
     {
       "path": "dist/session.js",
@@ -262,6 +302,11 @@
       "insert_bytes": 0
     },
     {
+      "path": "docs/PAGEBORNE.md",
+      "copy_bytes": 0,
+      "insert_bytes": 5624
+    },
+    {
       "path": "even-terminal",
       "copy_bytes": 0,
       "insert_bytes": 343
@@ -278,8 +323,8 @@
     },
     {
       "path": "package.json",
-      "copy_bytes": 313,
-      "insert_bytes": 539
+      "copy_bytes": 311,
+      "insert_bytes": 541
     },
     {
       "path": "scripts/diagnose-claude.mjs",
@@ -302,9 +347,14 @@
       "insert_bytes": 927
     },
     {
+      "path": "test/claude-launcher.test.js",
+      "copy_bytes": 24,
+      "insert_bytes": 3054
+    },
+    {
       "path": "test/claude-remote.test.js",
-      "copy_bytes": 628,
-      "insert_bytes": 17889
+      "copy_bytes": 655,
+      "insert_bytes": 19462
     },
     {
       "path": "test/claude-sdk.test.js",
@@ -315,6 +365,36 @@
       "path": "test/claude-shared.test.js",
       "copy_bytes": 425,
       "insert_bytes": 18969
+    },
+    {
+      "path": "test/pageborne-conversation.test.js",
+      "copy_bytes": 0,
+      "insert_bytes": 2313
+    },
+    {
+      "path": "test/pageborne-files.test.js",
+      "copy_bytes": 0,
+      "insert_bytes": 3861
+    },
+    {
+      "path": "test/pageborne-library.test.js",
+      "copy_bytes": 0,
+      "insert_bytes": 7275
+    },
+    {
+      "path": "test/pageborne-reader-state.test.js",
+      "copy_bytes": 0,
+      "insert_bytes": 2562
+    },
+    {
+      "path": "test/pageborne-session-titles.test.js",
+      "copy_bytes": 0,
+      "insert_bytes": 2071
+    },
+    {
+      "path": "test/pageborne-workspaces.test.js",
+      "copy_bytes": 0,
+      "insert_bytes": 2207
     },
     {
       "path": "test/provider-routing.test.js",
@@ -328,8 +408,8 @@
     },
     {
       "path": "test/shared.test.js",
-      "copy_bytes": 1544,
-      "insert_bytes": 25158
+      "copy_bytes": 2065,
+      "insert_bytes": 34733
     },
     {
       "path": "test/startup.test.js",

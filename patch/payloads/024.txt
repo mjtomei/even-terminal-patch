@@ -1,40 +1,109 @@
-CodexTranscript } from "./transcript.js";remoteStatus = "idle";
-    currentUserPrompt = "";
-    canAcceptDirectInput = true;
-    connected = true;
-    agentTexts = new Map();
-    lastSeenTurnId;
-    hasSnapshot = falsethis.transcript = opts?.transcript ?? new CodexTranscript()remoteStatus === "awaiting" ? "awaiting" :hydrate(thread, turns = []) {
-        this.transcript.merge([...turns].reverse());
-        turns = this.transcript.snapshot().reverse();
-urns[0]?.status === "inProgress" &&!== "idle" ? turns[0] : undefined;
-        const previousTurnId = this.lastSeenTurnId ??const wasActive = this._busy || !!const previousText = this.assistantTextthread.cwd;
-        this.canAcceptDirectInput = thread.canAcceptDirectInput;
-        this.connected = true;
-        this.remoteStatus =this._busy = this.remoteStatus !== "idle"active?.idactive || turns[0];
-        if (latest) {
-            const changedTurn = this.hasSnapshot && latest.id !== previousTlastSeenTurnId = latest.id;
-            this.agentTexts = new Map((latest.items || []).filter(i => i.map(i => [i.id, i.text || ""]));
-[...this.agentTexts.values()].join("er = (latest.items || []).filter(i => i.at(-1UserPrompt = (user?.content || []).map(c => c.text || "").join("");
-latest.startedAt ? latest.startedAt * 1000 :this.turnStartedAt = this.turnStartMs;
-            if (changedTurn || (!this.hasSnapshot && activ    if (this.currentUserPrompt): this.currentUserPrompthis.assistantText)this.assistantText// Recover output missed during a transport outage, without replaying
-            // the prefix already displayed by connected Even clients.
-            if (previousTurnId === latest.id && this.assistantText.startsWith(previousTextsuffix = this.assistantText.slice(previousText.lengthuffix)suffixif (!active && (changedTurn || (wasActive && previousTurnId === latest.id)send({ type: "result", success: lates, text: this.assistantText,Id: this.id, provider: "codex", costUsd: 0, turns: 1, durationMs: latest.durationMs || 0this.hasSnapshot = truthis.statsTimer.unref?.(this.status, sessionId: this.iinitialMessages(includeTextmessages = [];
-        if (includeText && if (this.currentUserPrompt) messages.push: this.currentUserPrompt });
-    ) messages.pushthis.assistantTmessages.pushthis.status, sessionId: this.iconst permissionpermission?.message) messages.push(permission.message);
-        for (const question of this.pendingQuestions) if (question.message) messages.push(question.message);
-        return messages;
+import { randomUUIDimport { CodexTranscript } from "./transcript.js";
+import { mergeLocalRollout } from "./rollout, { reconnectDelayMs = 500, idleTtlMs = 180000, stateDirSTATE_DIR } = {}) {const entries = new Map();
+    let closed = false;
+    let generation = 0;
+    let retryTimer;
+    let retryDelay = reconnectDelayMs;
+    const missing = (error) => error)|\bunknown (?:thread|session)\b|\bno rollout found for thread id\b/i.test(error.message);
+    const fail = (message, statusCode = 409) =>essage), { statusCode });
+
+    function scheduleReconnect() {
+        if (closed || retryTimer || !entries.size) return;
+       retryTimer = undefined;s = await Promise.allSettled([...entries.keys()].map(id => attach(id)));
+            if (results.some(r => r.status === "rejected"ryDelay = Math.min(retryDelay * 2, 30000);
+                scheduleReconnect();
+            } else retryDelay = reconnectDelayMs;
+        }, retryDelay);
+        retryTimer.unref?.();
     }
-    isReplayable=== "permission_request") returnome(p => String(p.requestId) === msg.msg.type === "user_question") returnome(p => String(p.requestId) === msg.toolUseIdlose() {
-        this.transcript.flush();
-        // Detach locally. A phone or desktop may still be using this thread.Questions)clear(_decision, firstfirst || (requestId != null && String(first.requestId) !== String(requestId)))"Approval was already resolved or is no longer current"), { statusCode: 409 })hift(): pendingpending, expectedRfirst[0];
-        if (!first || (expectedRequestId != null && String(first.requestId) !== String(expectedRequestId)))"Question was already resolved or is no longer current"), { statusCode: 409 })hift(this.transcript.notification(method, p, this.currentTurnId ?? this.lastSeenTurnId);status/changremoteStatus = codexThreadStatus({ status: p.status });
-p.status?.type === "active"this.status, sessionId: this.i turn can be started from any attached device. && turnId    this.lastSeenthis.agentTex    this.currentUserPrompthis.turnStartedAt = this.turnStartMsthis.remoteStatus = "busy";this.statsTimer.unref?.(isyncAssistantText(p.turnIdcurrentUserPrompt = text}statsTimer.unref?.const old = this.assistantTexitem.texthis.syncAssistantText(p.turif (this.assistantText.startsWith(old) && this.assistantText.length > old.lengththis.assistantText.slice(old.length)[......this.pendingQuestions].some(p => String(p) return;this.questionTimeoutMs > 0 ? :const message = { type: "user_question", questions, }at(-1).message = messagmessageconneclose(error", message: error.message });
-        // Preserve the active turn and displayed prefix for hydration on reconnect.
+
+    async function attach(id, refresh = false, startedThread = null) {
+        if (closed) throw fail("Bridge is shutting down", 503);
+        if (typeof id !== "string" || !id) throw fail("Missing session ID", 400);
+        let entry = entries.get(id);
+        if (!entry) {emit, client, { transcript: new CodexTranscript(id, stateDir).setThreadId(id);
+            entry = { session, ready: false, promise: null, lastUsed: Date.now(), buffered: [] };
+            entries.set(id, entry);
+        }
+        entry.lastUsed = Date.now();
+        if (entry.promise) return entry.promise;
+        if (entry.ready && client.connected && !refresh) return entry.session;
+        const attachGeneration = generation;
+        entry.promise// Full-history resume can exceed the shared transport's limit
+                // and disconnect every selected conversation. Subscribe using
+                // metadata plus one recent turn; history loads separately.
+                // thread/start already subscribes to a new unpersisted thread.
+                let thread = startedThread;
+                let turns = startedThread?.turns ?? []readresumesume({ threadId: id, excludeTurn        initialTurnsPage: { limit: 1, sortDirection: "desc", itemsView: "full" }thread = resumed.threadpage = resumed.initialTurnsPage ??            threadId: id, limit: 1, sortDirection: "desc", itemsView: "full"turns = [...page.data].revers    await mergeLocalRollout(client, entry.session, threageneration !== attachGeneration || entries.get(id) !== entry || closed) throw fail("Connection changed while attaching; retry", 503);
+                entry.session.hydrate(thread, [...turns].reverse());
+                entry.readfor (const [method, params] of entry.buffered.splice(0)) entry.session            return entry.session;
+            } catch (error) {
+                entry.readentry.buffered.length = 0;
+                if (missing(erroentries    entry.session    throw failid}`, 404scheduleReconnect();or;
+            } finally { entry.promise = null; }
+        })();
+        return entry.promise;
     }
-    syncAssistantText( ?? this.lastSeenTurnId) {
-        const turn = this.transcript.snapshot().find(t => t.id === turnId);
-        if (!turn) return;
-        this.agentTexts = new Map(turn.items.filter(i => i.map(i => [i.id, i.text])[...this.agentTexts.values()].join("");remoteStatus = "idle"questionIndep => String(pquestionIndex !== -1) {
-            const [question]questionIndex, 1question[], resolvedExternally: truestatus", state: this.status, sessionId: this.i}this.status, sessionId: this.i> 0 ? : nullpending.message = ;
-        this.send(pending.message
+id = params.threadId ?? params.thread?.id;
+        const entry = entries.get(id);
+        if (!entry) return; // Subscribe only to conversations selected in Even.entry.ready = false;
+            entry.new Error("Conversation unloaded; reconnecting"));
+            scheduleReconnecif (!entry.ready && method !entry.buffered.push([method, params]entry.sessionientries.get(params.threadId)?.session.handleServerRequest(igeneration++;entrieentry.ready = false;
+            entry.buffered.length = 0;
+            entry.    scheduleReconnect();
+    };
+
+    async function detach(id) {
+        const entry = entries.get(id);
+        if (!entry) return;
+        entries.delete(id);
+        entry.session.close();
+        if (client.connected) awaitid).catch(() => {});
+    }
+    const sweepfor (const [id, entry] of entries) {
+            if (!entry.promise && Date.now() - entry.lastUsed > idleTtlMs && !sessionHasClients(id)) void detach(id);
+        }
+    }, Math.min(idleTtlMs, 30000));
+    sweep.unref?.();
+itartedThread;
+        if (!id) {
+            startedTStart({ cwd: cwd || });
+            id = startedThread.idn established subscription already tracks other devices. Replaying
+        // historical state here used to replace the glasses' live transcript.await attach(id, false, startedThread);
+        if (session.canAcceptDirectInput === false) throw fail("This conversation does not accept direct input")[{ type: "text", text }];
+        const clientUserMessageId = randomUUID( && sessionclient.turnSteer({ threadId: id, expectedTurnId: session.currentTurnId, clientUserMessageId, input });
+            } catch (error) {
+                // Only a definite RPC rejection permits fallback. Network errors/timeouts
+                // may have accepted the text; never blindly send it twice.or.rpcCode == null || !/no active turn|not active|turn.*(?:mismatch|does not match|not found|completed)/i.test(error.message)) throw error;
+                await client.turnStart({ threadId: id, clientUserMessageId, input else {
+            // Codex 0.153 also steers if a different client started a turn meanwhile.
+            await client.turnStart({ threadId: id, clientUserMessageId, inpureturn activeSession(id) {
+        const entry = entries.get(id);
+        if (!entry?.ready || !client.connected) throw fail("Conversation is reconnecting; try again", 503);
+        entry.lastUsed = Date.now();
+        return entry.sessionattach,
+        detachasync setSessionTitle(id, title) { await client.threadSetName(id, title); },
+        async return ().map(s })); },
+        async getSessionStatus(id) {id)); },
+        async getInfo()ounreturn { account: account ?? {}, model: "Codex", version: client.serverInfo?.userAgent ?? "Shared daemon"    },
+        async getHistory(id, limitsession = await attach(id);
+                await mergeLocalRollout(client    awaitid, limit, turns => session.transcript.merge(turns) session.transcript.history(limit);
+            } catch (errorhistory = entries.get(id)?.session.transcript.history(limihistory?.length) return history;o,
+        async getConversation(id) {await attach(id);
+            // Live notifications and the durable transcript survive gaps in
+            // daemon history. Refresh recent history to catch offline input.
+            await mergeLocalRollout(clientawaitid, 80, turns => session.transcript.merge(turns), 80);transcript.snapshot();
+        },
+        async interrupt(id) {await attachif (session.currentTurnId) await client.turnInterrupt(id, session.currentTurnId);
+        }(id, decision, requestId) { activeSession(id), requestId); }(id, answer, requestId) { activeSession(id).respondQuestion(answer, requestId); },
+        getStatus(intry = entries.get(id);
+            return entry ? { state: entry., connected: entry.ready && client.connected } : null;
+        },
+        initialMessages(id, includeText = true) { return entries.get(id)?.session.initialMessages(includeText) ?? []; },
+        isReplayable(id, msg) { return entries.get(id)?.session.isReplayable(msg) ?? !["permission_request", "user_question"].includes(msg.type); }() { return [...entries].map(([threadId, e]) => ({ threadId, status: e.session.status, connected: e.ready && client.connected })); },
+        closed = truelearInterval(sweep);
+    Settled([...entries.keys()].map(detach));
+            await client.close();
+        },
+    };
+}

@@ -1,41 +1,63 @@
-import test from 'node:test';
-import assert from 'node:assert/strict''node:http';
+// Explicit, opt-in check: sends a small prompt in a temporary Codex conversation.
+import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtemp, readFile, writeFile, access, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-
-test('an occupied HTTP port exits cleanly without changing pairing or starting a tunnel', { timeout: 10000 }, async t => {
-    const dir = await mkdtemp(join(tmpdir(), 'even-startup-'));
-    t.after(() => rm(dir, { recursive: true, force: true }));
-    const existing = createServer((_req, res) => res.end('existing server'));
-    existing.listen(0, '127.0.0.1');
-    await once(existing, 'listening');
-    t.after(() => new Promise(resolve => existing.close(resolve)));
-    const port = existing.address().port;
-    const pairing = '{"existing":"pairing must survive"}\n';
-    await writeFile(join(dir, 'pairing.json'), pairing);
-    const tunnel = join(dir, 'ngrok');
-    await writeFile(tunnel, '#!/usr/bin/env node\nimport("node:fs").then(fs => fs.writeFileSync(process.env.EVEN_STARTUP_MARKER, "started"));\n', { mode: 0o700 });
-    const marker = join(dir, 'tunnel-started'(process.execPath, ['bin/cli.js', '--host', '127.0.0.1', '--port', String(port), '--no-qr', '--expose', 'ngrok'], {
-        cwd: new URL('..', import.meta.url),
-        env: { ...process.env, EVEN_TERMINAL_STATE_DIR: dir, BRIDGE_TOKEN: 'startup-test-token',
-            NGROK_PROGRAM_PATH: tunnel, EVEN_STARTUP_MARKER: marker },
-        stdio: ['ignore', 'pipe', 'pipe'],
+import { tmpdir } from 'node:os';
+'node:crypto''../dist/codex/app-server.js';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const until = async (fn, timeout = 60000) => {
+    const end = Date.now() + timeout;
+    while (Date.now() < end) { if (fn()) return; await sleep(50); }
+    throw new Error('Timed out waiting for the live Codex response');
+};
+const owner);
+const state = await mkdtemp(join(tmpdir(), 'even-live-smoke-'));
+const token = randomBytes(24).toString('hex');
+let child, thread, abort;
+try {
+    thread = await owner.threadStart({ cwd: process.cwd(), sandbox: 'read-only', approvalPolicy: 'never' });
+    const id = thread.id;
+    await owner.call('thread/name/set', { threadId: id, name: 'Even Terminal connectivity test' });
+    child = spawn(process.execPath, ['bin/cli.js', '--host', '127.0.0.1', '--port', '0', '--no-qr'], {
+        env: { ...process.env, EVEN_TERMINAL_STATE_DIR: state, BRIDGE_TOKEN: token }, stdio: ['ignore', 'pipe', 'pipe'],
     });
-    t.after(async () => {
-        if (child.exitCode === null && child    const closed = once(child, 'close');'SIGKILL');
-            await closedlet output = '';
-    child.stdout.on('data', chunk => output += chunk);
-    child.stderr.on('data', chunk => output += chunk);
-    const [code, signal] = await once(child, 'close');
-    assert.equal(code, 1, output);
-    assert.equal(signal, null);
-    assert.match(output, /already in use/);
-    assert.doesNotMatch(output, /TypeError|Cannot read properties|startup-test-token|\[server\] listening/);
-    assert.equal(await readFile(join(dir, 'pairing.json'), 'utf8'), pairing);
-    await assert.rejects(access(join(dir, 'instances')), { code: 'ENOENT' });
-    await assert.rejects(access(marker), { code: 'ENOENT' });
-    assert.equal(await (await fetch(`http://127.0.0.1:${port}`)).text(), 'existing server');
-});
+    let logs = '';
+    child.stdout.on('data', b => logs += b); child.stderr.on('data', b => logs += b);
+    await until(() => logs.includes('[server] listening'), 10000);
+    const base = logs.match(/\[server\] listening (http:\/\/[^\s]+)/)[1];
+    const headers = { Authorization: `Bearer ${token}` };
+    abortstream = await fetch(`${base}/api/events?provider=codex&sessionId=${id}`, { headers, signal: abort.signal });
+    assert.equal(stream.status, 200, await (stream.status === 200 ? '' : stream.text()));
+    const reader = stream.body.getReader();
+    const events = [];
+    const readinglet buffered = ''while (true{ done, value } = await reader.read(); if (done)buffered += new TextDecoder().decode(valueframes = buffered.split('\n\n'); buffered = frames.pop(frame of framesdata = frame.split('\n').find(l => l.startsWith('data: ')data) events.push(JSON.parse(data.slice(6)) catch (e) { if (!abort.signal.aborted) throw e; }
+    })();
+    const input = 'Connectivity test for the Even glasses bridge. Reply with exactly EVEN_SHARED_OK. Do not use tools.';
+`${base}/api/prompt`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'codex', sessionId: id, text: input }) });
+    assert.equal(response.status, 202, JSON.stringify(await response.json()));
+    await until(() => events.some(e => e.type === 'result'));
+    const result = events.find(e => e.type === 'result');
+    assert.equal(result.success, true, result.text);
+    assert.match(result.text, /EVEN_SHARED_OK/);
+    assert.ok(events.some(e => e.type === 'text_delta' && e.text));
+    // A second independent client sees the exact conversation updated by HTTP.
+owner.threadTurnsList({ threadId: id, limit: 2, itemsView: 'full' });
+    const items = history.data.flatMap(t => t.items);
+    assert.ok(items.some(i => i.type === 'userMessage' && i.content.some(c => c.text === input)));
+    assert.ok(items.some(i => i.type === 'agentMessage' && i.text.includes('EVEN_SHARED_OK')));
+    console.log(JSON.stringify({ passed: true, sharedThreadId: id, inputViaHttp: true, outputViaSse: true, verifiedBySecondClient: true, eventTypes: [...new Set(events.map(e => e.type))] }));
+    abort.abort(); await reading;
+} finally {
+    abort?.abort();
+    if (child) { const exited = once(child, 'exit'); child.kill('SIGTERM'); await Promise.race([exited, sleep(4000)]); if (child.exitCode == null) child.kill('SIGKILL'); }
+    if (thread) {
+wait owner.threadRead(thread.id).catch(() => null);
+        if (current?.status.type !== 'active') await owner.call('thread/archive', { threadId: thread.id }).catch(() => {});
+        await owner.id).catch(() => {});
+    }
+    await owner.close();
+    await rm(state, { recursive: true, force: true });
+}

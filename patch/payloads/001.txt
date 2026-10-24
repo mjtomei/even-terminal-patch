@@ -1,11 +1,37 @@
-# Attribution
+# Changes
 
-This unofficial local installation is based on
-`0.8.1`, obtained from the official npm registry.
-The upstream README declares MIT and is retained unchanged as UPSTREAM-README.md.
-The inspected archive supplies no full license file or copyright notice; no
-upstream holder or year is asserted here.
+## 0.2.0 — 2026-10-24
 
-Upstream material and dependencies retain their respective terms. The Claude
-Agent SDK has its own terms. Dependency license files are installed by npm with
-their packages.
+Reconstructs `even-terminal-shared@0.8.1-shared.2` from the same pinned
+`0.8.1` archive.
+
+- Fix large Codex session attachment dropping the shared WebSocket and other
+  selected sessions. Resume with metadata and one recent turn page; retrieve
+  the page separately if the bootstrap response omits it.
+- Bound local rollout recovery to an 8 MiB tail and a metadata header of at most
+  1 MiB, preserving UTF-8 records and session identity checks.
+- Keep resume timeouts recoverable instead of reporting a missing session, and
+  preserve the original WebSocket error when the transport fails.
+- Start the first turn of a new Codex session without trying to resume its
+  not-yet-persisted transcript. Name new paper sessions without resending an
+  accepted prompt if naming fails.
+- Add Pageborne's library API: resumable checksum-verified uploads, downloads,
+  conditional commits/deletions, retained file versions, and immutable original,
+  reflow and index snapshots for questions during desktop edits.
+- Add optional per-paper session folders, shared Codex/Claude conversation
+  snapshots, and persistent document/session links and question locations scoped
+  to the Terminal instance and library. Preserve repeated questions and recognize
+  both glasses and web reader prompt wrappers.
+- Add opt-in creation of native Claude Remote Control owners in tmux, with
+  durable creation IDs and no automatic resend after an ambiguous launch.
+
+These are desktop bridge changes. Pageborne's reader UI, speech models, app
+packages, web hosting and private library contents are separate. The upstream
+version, dependency versions, default provider and ordinary Even history and
+session-list limits are unchanged. No new project license grant is added.
+
+## 0.1.0 — 2026-09-26
+
+Initial reviewed patch release: existing Codex daemon attachment, experimental
+native Claude Remote Control, shared history recovery and the numeric COPY/INSERT
+distribution format.

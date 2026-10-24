@@ -1,0 +1,28 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { conversationTurns, displayQuestion, installConversationSync } from '../dist/routes/pageborne-conversation.js';
+const user = (id, text) => ({ id, type: 'userMessage', content: [{ type: 'text', text }] });
+const assistant = (id, text) => ({ id, type: 'agentMessage', text });
+
+test('conversation endpoint exposes only text for the requested provider/session and retains all recent pairs beyond ten messages', async () => {
+  let handler, requested;
+  installConversationSync({ get(path, fn) { assert.equal(path, '/pageborne/conversation'); handler = fn; } }, (provider, id) => {
+    requested = [provider, id]; return { getStatus: () => ({ state: 'idle' }), getConversation: async () => Array.from({ length: 30 }, (_, n) => ({
+      id: `turn-${n}`, status: 'completed', items: [user(`u-${n}`, `Question ${n}`), assistant(`a-${n}`, `Answer ${n}`), { id: 'tool', type: 'commandExecution', command: 'must not appear' }],
+    })) };
+  });
+  let result; await handler({ query: { provider: 'codex', sessionId: 's' } }, { json(value) { result = value; } });
+  assert.deepEqual(requested, ['codex', 's']); assert.equal(result.turns.length, 30); assert(!JSON.stringify(result).includes('must not appear'));
+});
+
+test('conversation display preserves repeated inputs and recognizes both glasses and web question wrappers', () => {
+  const marker = 'Pageborne question 00000000-0000-4000-8000-000000000001';
+  const question = 'Explain this.\n\nQuestion:\nPreserve my text.';
+  for (const platform of ['text-only glasses.', 'a phone and tablet web reader.']) {
+    const wrapped = `${marker}\nYou are a reading companion ${platform === 'text-only glasses.' ? 'on' : 'in'} ${platform}\n\nCurrent reading position (source material):\n{}\n\nQuestion:\n${question}`;
+    assert.deepEqual(displayQuestion(wrapped), { marker, question });
+    const turns = conversationTurns([{ id: 'turn', status: 'inProgress', items: [user('one', 'Again?'), user('two', 'Again?'), assistant('a', 'Answer'), user('three', wrapped)] }]);
+    assert.deepEqual(turns.map(t => [t.question, t.answer, t.state]), [['Again?', '', 'complete'], ['Again?', 'Answer', 'complete'], [question, '', 'pending']]);
+  }
+  assert.deepEqual(displayQuestion(question), { question });
+});

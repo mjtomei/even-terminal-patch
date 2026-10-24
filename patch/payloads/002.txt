@@ -1,15 +1,11 @@
-# Reconstructed package provenance
+# Attribution
 
-Base: `0.8.1` from the official npm registry:
-//-/even-terminal-0.8.1.tgz
+This unofficial local installation is based on
+`0.8.1`, obtained from the official npm registry.
+The upstream README declares MIT and is retained unchanged as UPSTREAM-README.md.
+The inspected archive supplies no full license file or copyright notice; no
+upstream holder or year is asserted here.
 
-The patch applicator verifies the pinned archive integrity and every reconstructed
-file's SHA-256. Original additions implement attachment to an existing Codex
-daemon, experimental native Claude Remote Control, transcript recovery, provider
-routing, independent bridge lifecycle, tests and launchers. No phone or glasses
-application source is included. UPSTREAM-README.md preserves the base package's
-original README and its MIT declaration.
-
-This installation was assembled locally from that separately obtained base and
-the numeric COPY/INSERT patch. The patch is specific to 0.8.1 and does not claim
-compatibility with later upstream releases. See NOTICE.md for license scope.
+Upstream material and dependencies retain their respective terms. The Claude
+Agent SDK has its own terms. Dependency license files are installed by npm with
+their packages.

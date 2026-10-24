@@ -1,0 +1,141 @@
+import { randomUUID } from 'node:crypto';
+import { ClaudeRemoteClient, fail, remoteId } from './client.js';
+import { localBindings } from './bindings.js';
+import { RemoteTranscript, sequence, textContent } from './transcript.js''../../routes/events.js';
+
+export function createRemoteClaudeProvider(emit, { client = new ClaudeRemoteClient(), bindings = localBindings,
+    pollMs = 1000, idleTtlMs = 180000, launcher } = {}) {
+    const entries = new Map();
+    let closed = false, listing, listingAt = 0, listingPromise;
+    const state = entry => entry.transcript.pending.size || entry.metadata?.requires_action_details_list?.length ? 'awaiting'
+        : ['running', 'busy', 'working'].includes(entry.metadata?.worker_status) ? 'busy' : 'idle';
+    const statusMessage = entry => ({ type: 'status', state: state(entry), sessionId: entry.id, provider: 'claude' });
+    function notify(entry, message) { if (!closed) emit(entry.id, message); }
+    function guardBinding(entry) {
+        if (closed) throw fail('Bridge is shutting down', 503);
+        if (!entry.binding)urrent = bindings().filter(b => b.localId === entry.id && b.cloudId === entry.cloudId);
+        if (current.length !== 1 || current[0].pid !== entry.binding.pid || current[0].procStart !== entry.binding.procStart) {
+            throw fail('Claude changed or closed this conversation. Select its current Remote Control session again.'function listRemote() {
+        if (listing && Date.now() - listingAt < 3000) return listing;
+        if (listingPromise) return listingPromise;
+        listingPromise = client.listSessions().then(sessions => {
+            listing = sessions.filter(s => remoteId(s.id) && s.environment_kind === 'bridge' && s.status === 'active');
+            listingreturn listing;
+        }).finally(() => { listingPromise = undefined; });
+        return listingPromise;
+    }
+    function bindingFor(id) {
+        const matches = bindings().filter(binding => binding.localId === id);
+        if (matches.length > 1) throw fail('Multiple Remote Control sessions match this local conversation. Select a native remote session explicitly.');
+        if (!matches.length) throw fail('This conversation has no active native Remote Control connection. Enable /remote-control in its normal Claude terminal.');
+        return matches[0];
+    }
+    function ingest(entry, events, notifyEvents) {
+        const ordered = events.map(event => ({ event, seq: sequence(event.sequence_num) }));
+        if (ordered.some(item => item.seq === null)) throw fail('Claude returned an invalid event sequence', 502);
+        ordered.sort((a, b) => a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : 0);
+        for (const { event, seq } of ordered) {
+            if (entry.cursor !== null && seq <= entry.cursor) continue;
+            entry.transcript.ingest(event, notifyEvents);
+            entry.cursor = seqrefresh(entry, forceMetadata = false) {
+        if (entry.refreshing) return entry.refreshing;
+        entry.refreshing = Promise.resolve().thenguardBindingconst readMetadata = client.getSession(entry.cloudentry.metadatareturn result;    let metadata = entry.metadata;
+                if (!metadata || !entry.connected || forceMetadata || Date.now() - entry.metadataAt > 5000) metadata = await readMetadatametadata.environment_kind !== 'bridge' || metadata.status !== 'active') throw fail('The native Claude Remote Control session is no longer active.'beforeCursor = entry.cursor;
+                if (!entry.hydrated// Fetch recent history first. Older pages are only needed if
+                    // tool traffic displaced the recent shared conversation.history = [];
+                    let cursor;
+    page = 0; page < 10; page++events(entry.cloudId, { order: 'desc', cursorhistory.push(...result.dataconst visible = history.filter(e => ['user', 'assistant'].includes(e.payload?.type) && !e.payload?.parent_tool_use_id && textContent(e.payload?.message?.content).trim()if (!result.next_cursor || visible.filter(e => e.payload.type === 'user').length >= 40)    if (result.next_cursor === cursor) throw fail('Claude event pagination did not advance', 502cursor = result.next_cursor    guardBinding    ingest(entry, historyentry.cursor ??= 0n;
+                    entry.hydra}for (let page = 0; page < 10; page++const before = entry.cursorevents(entry.cloudId, { cursor: String(entry.cursor)guardBinding        ingest(entry, result.data, tr    if (!result.next_cursor)    if (entry.cursor === before) throw fail('Claude event pagination did not advance', 502)// Read state after draining events so a just-resolved permission
+                // or completed turn does not leave the glasses showing stale state.
+                if (beforeCursor !== entry.cursor) metadata = await readMetadata();
+                guardBindingmetadata.status !== 'active') throw fail('The native Claude session is no longer active.');
+                entry.metadata = metadata;
+                if (metadata.worker_status === 'idle' && !metadata.requires_action_details_list?.lengthfor (const [requestId, request] of entry.transcript    notify(entry, { type: 'permission_result', toolUseId: requestId, toolName: request.tool_        decision: 'resolved', resolvedExternally: true, summary: 'Request closed in Claude'}
+                    entry.transcript}id of entry.responding) if (!entry.transcript.pending.has(id)) entry.respoentry.connected = metadata.connection_status === 'connected';
+                entry.error = undefined;
+                entry.failures = 0;
+                entry.nextPollAt = 0us = statusMessageconst statusKey = `${status.state}:${entry.connected}`;
+lastStatus !== statusKey) { entry.lastStatus = statusKey; notify(entry, status); }
+            } catch (error) {
+                entry.connectentry.failures = (entry.failures || 0) + 1;
+                entry.nextPollAt = Date.now() + Math.min(30000, 1000 * 2 ** Math.min(entry.failures, 5)closed && entry.hydrated && entry.error !== error.message) notify(entry, { type: 'error', message: erroentry.error = error.message;or;
+            } finally { entry.refreshing = undefined; }entry.refreshingattach(id) {
+        if (closed) throw fail('Bridge is shutting down', 503);
+        if (typeof id !== 'string' || !id) throw fail('Select an existing Claude Remote Control session.', 400);
+        let entry = entries.get(id);
+        if (!entry) {
+            const binding = remoteId(id) ? undefined : bindingFor(id);
+            entry = { id, cloudId: binding?.cloudId || id, binding, cursor: null, connected: false, hydrated: false,
+                responding: new Set(), lastUsed: Date.now() };
+            entry.transcript = new RemoteTranscript(id, message => notify(entry, message));
+            entries.set(id, entry);
+        }
+        entry.lastUsed = Date.now();
+        guardBinding(entry);
+        if (!entry.hydrated || !entry.connected) await refresh(entry);
+        return entrywritable(id) {
+        const entry = await attach(id);
+        await refresh(entry, true);
+        guardBinding(entry);
+        if (!entry.connected) throw fail('Claude Remote Control is disconnected. Reconnect the normal Claude session before sending.');
+        return entryrespond(id, requestId, makeResponse) {
+        const entry = await writable(id);
+        const request = entry.transcript.pending.get(requestId);
+        if (!requestId || !request || entry.responding.has(requestId)) throw fail('This Claude request is no longer pending; answer the current request in Claude.')makeResponse(request);
+        entry.responding.add(requestId);
+        // Keep the request reserved even after an ambiguous transport failure.
+        await client.send(entry.cloudId, { uuid: randomUUID(), session_id: entry.cloudId, type: 'control_response',
+            response: { subtype: 'success', request_id: requestId, response } });
+    }
+    const t{
+        for (const [id, entry] of entries) {
+            if (Date.now() - entry.lastUsed > idleTtlMs && !sessionHasClients(id)) { entries.delete(id); continue; }
+            if (entry.nextPollAt > Date.now()) continue;
+            void refresh(entry).catch(() => {});
+        }
+    }, pollMs);
+    timer.unref(attach,
+        ...(launcher ? { async prepareSession(inpucord = await launcher.prepare(input);
+            await writable(recordreturn { ...record, provider: 'claude' };
+        } } : {}),
+        hasSession: id => remoteId(id) || entries.has(id) || bindings().some(binding => binding.localId === id),
+        async listSessions(limit = 10, cwd) {s = await listRemote(), local = bindings();s.map(sessionmatches = local.filter(b => b.cloudId ===     const binding = matches.length === 1 && local.filter(b => b.localId === matches[0].localId).length === 1 ? matches[0] : undefined { id: binding?.localId || session.id, title: (session.title || 'Claude Remote Control'        timestamp: session.last_event_at || session.updated_at || session.created_at, cwd: binding?.cwd || '', provider: 'claude',tus: session.requires_action_details_list?.length ? 'awaiting' : session.worker_status === 'running' ? 'busy' : 'idle' };
+            }).filter(session => !cwd || session.cwd === cwd).sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)))
+                .slice(0, Math.max(1, Math.min(limit, 100)));
+        },
+        async getInfo() { return { account: {}, model: launcher?.model || 'Claude (Remote Control)', version: 'Native session', provider: 'claude' }; },
+        getStatus(id) { const entry = entries.get(id); return entry?.hydrated ? { state: state(entry), provider: 'claude', connected: entry.connected } : null; },
+        async getSessionStatus(id) { return state(await attach(id)); },
+        async getHistory(id, limit) { const entry = await attach(id); await refresh(entry); return entry.transcript.history(limit); },
+        async getConversation(id) { const entry = await attach(id); await refresh(entry); return entry.transcript.snapshot(state(entry)); },
+        initialMessages(id, includeText = trentry = entries.get(id);
+            if (!entry?.hydrated) return [];
+            // The app loads completed turns from /history. Sending the same
+            // text here leaves it in the live reply buffer until the next input.
+            const includeActiveText = includeText && state(entry) !== 'idle';(includeActiveText ? entry.transcript.initialMessages() : []), statusMessage(entry),
+                ...[...entry.transcript.pending].filter(([requestId]) => !entry.responding.has(requestId)).map(([requestId, request]) => entry.transcript.permissionMessage(requestId, request))];
+        },
+        isReplayable(id, message) {
+            if (!['permission_request', 'user_question'].includes(message.type)) return truentries.get(id);
+            return !!entry?.connected && entry.transcript.pending.has(message.toolUseId) && !entry.responding.has(message.toolUseId);
+        },
+        async prompt(id, text) {
+            if (!id) throw fail('Start Claude normally, enable Remote Control, and select that existing session.', 400)await writable(id);
+            await client.send(entry.cloudId, { uuid: randomUUID(), session_id: entry.cloudId, type: 'user', parent_tool_use_id: null{ role: 'user', content: text } }'claude' };
+        }(id, decision, requestId) {
+            return respond(id, requestId, requestrequest.tool_name === 'AskUserQuestion') throw fail('This request needs a question response');
+        'allow') return { behavior: 'allow', updatedInput: request.input };
+        'deny') return { behavior: 'deny', message: 'Denied by user from Even Terminal' };
+                throw fail('Choose allow or deny for this request', 400(id, answer, requestId) {
+            return respond(id, requestId, requestrequest.tool_name !== 'AskUserQuestion') throw fail('This request is not a question');
+                if (answer === 'skip') return { behavior: 'deny', message: 'Question skipped by user' };
+                let answers;
+                try { } catch { answers = Object.fromEntries((request.input?.questions || []).map(q => '', answer])); }
+                if (!answers || typeof answers !== 'object' || Array.isArray(answers)) throw fail('Invalid question answers', 400 { behavior: 'allow', updatedInput: { ...request.input, answers } },
+        async interrupt(intry = await writable(id);
+            await client.send(entry.cloudId, { uuid: randomUUID(), session_id: entry.cloudId, type: 'control_request',
+                request_id: randomUUID(), request: { subtype: 'interrupt' } });
+        },
+        async close() { closed = true; clearInterval(timer); client.close(); entries.clear(); },
+    };
+}

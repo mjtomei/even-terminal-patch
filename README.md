@@ -5,6 +5,11 @@ attachment to an existing Codex daemon and an experimental connector to normally
 launched Claude sessions with native Remote Control. Your terminal and native
 phone connection keep their existing agent owner; the glasses use the Even app.
 
+Release **0.2.0** adds large-session connection fixes and the Pageborne server
+extensions used by our current installation. See [the changes](CHANGELOG.md)
+and [Pageborne setup and API](docs/PAGEBORNE.md). The Pageborne reader app is a
+separate client and is not included in this repository.
+
 This repository contains a patch applicator, numeric COPY recipes and added
 material. Upstream implementation files and reconstructed installations are not
 included. The applicator downloads the exact upstream archive from npm, verifies
@@ -39,6 +44,22 @@ To use an archive you have already downloaded, add
 `--archive /path/to/even-terminal-0.8.1.tgz`; the same integrity checks apply.
 `python3 apply.py --check` verifies reconstruction entirely in memory.
 Downloads go directly to the pinned HTTPS registry URL; redirects are rejected.
+
+### Update an existing patched installation
+
+Pull this repository's update and reconstruct into a new directory, then install
+dependencies and run its tests using the commands above. Stop the old bridge
+before starting the replacement with the same connection options. To retain
+pairing, transcript caches and Pageborne instance identity, point the new bridge
+at the old installation's private state directory:
+
+```bash
+EVEN_TERMINAL_STATE_DIR=/absolute/path/to/old-install/.state ./even-terminal
+```
+
+Keep that directory private and preserve your existing library directory and
+environment settings. Existing Codex/Claude owners can keep running. The updater
+does not copy credentials or migrate a running installation automatically.
 
 ## Connect the glasses
 
@@ -78,10 +99,20 @@ documentation](https://code.claude.com/docs/en/cross-session-messaging#control-i
 - Codex input steers an active turn or starts the next idle turn on the same
   conversation. History merges live events, cache and read-only local rollout
   recovery. Bridge shutdown detaches without stopping the daemon.
+- Large Codex sessions attach using metadata and a recent turn page, keeping
+  full-history responses off the shared connection. Local recovery reads at
+  most an 8 MiB tail plus a bounded metadata header. Timeouts remain recoverable.
+- Pageborne adds authenticated document sync, immutable question attachments,
+  paper workspaces, session titles, shared conversation snapshots and saved
+  document/session links. The normal Even Terminal history still returns up to
+  ten entries; this does not add scroll-triggered history loading to its app.
 - Claude polls native events, restores recent history and submits to the
   existing owner. A fresh glasses send/reply and reopen without repeated output
   were confirmed on Claude 2.1.283. Full simultaneous three-device reconciliation
   and live Claude permission/question/interrupt controls remain unverified.
+- An optional Pageborne launcher can create a normal native Claude owner in
+  tmux when explicitly enabled on the desktop. It is disabled by default;
+  existing owners retain their model and permissions. See the Pageborne guide.
 - `--claude-mode shared` is an older channel-launcher prototype;
   `--claude-mode sdk` uses a separate SDK resume. Their ownership and controls
   differ from native attachment. Neither is the default.

@@ -1,14 +1,59 @@
-if (typeof sessionId !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(sessionIdconst claudeDir = join(process.env.CLAUDE_CONFIG_DIR ||)b.text === "string" && b.textconst hasSession = id => sessions.has(id) || !!findSessionFile(id    // The phone lists saved sessions before this bridge owns any SDK query.
-        // Opening one on the glasses must not report 404 or start a new owner.
-        retur
-            ? { state:, provider: "claude" }
-            : nullattachtatus =     if (!status)return status;
-    }
-    function initialMessagetatus =     return status ? [{ type: "status", ...status, sessionId }] : []const reducedmsg of if (msg.type !== "user" && text = extractTextContent(msg.message?.content);
-            if (!text.trim())previous = reduced.at(-1);
-            // Tool rounds can produce many assistant updates for one prompt.
-            // Group them before applying the glasses' ten-entry history limit.
-    assistant" && previous?.role === "assistant") previous.text += `\n\n${text}`;
-            else reducedturnCount = Math.max(1, Math.min(limit || MAX_HISTORY_ITEMS, MAX_HISTORY_ITEMS)hasSession,
-        attach,
-        initialMessages,
+#!/usr/bin/env nodewriteFileSync, mk{ spawndefaultEndpoint } from "../dist/codex/app-server.js";
+
+const root = resolve(, ".."join(root, "STATE_DIR ||= join(root, ".state");
+||= "codex";
+const stateDirSTATE_DIR;laude") {
+    const { launchClaude } = await import("../dist/claude/shared/launcher.js");
+    try { process.exitCode = await launchClaude(root, stateDir, rawArgs.slice(1)); }
+    catch (error) { console.error(error.message); process.exitCode = 1; }
+} else {("codex", ["--remote", defaultEndpoint(), ...rawArgs.slice(1)], { stdio: "inherit" });
+    if (result.error) console.error(result.error.message);
+  if (rawArgs[0] === "pair") {
+    const pairinjoin(stateDir, "pairing.json"), "utf8"));
+    process.env.EVEN_BIND_HOST = pairing.host;
+    const { printServerBanner } = await import("../dist/startup/common.js");
+    printServerBanner(pairing.port, pairing.token, pairing.cwd, true);
+    process.exit(0);
+}
+await bridge
+    .option("port", { alias: "p", type: "number", default: 3456, describe: "Even app HTTP port" })
+    .option("token", { alias: "t", type: "string", describe: "Even app token (default: saved locally)" })
+    .option("name", { alias: "n", type: "string", describe: "Name shown in the Even app" })
+    .option("cwd", { alias: "d", type: "string", describe: "Working directory for new conversations" })
+    .option("provider", { choices: ["codex", "claude"], default: "codex", describe: "Default provider" })
+    .option("claude-mode", { choices: ["sdk", "shared", "remote"], default: "remote", describe: "remote joins native Remote Control; shared uses the Even channel; sdk resumes separately" })
+    .option("codex-socket", { type: "string", describe: "Existing Codex daemon's Unix socket" })
+    .option("codex-url", { type: "string", describe: "Existing daemon endpoint (unix://, ws://, wss://)" })
+    .option("host", { type: "string", describe: "HTTP bind address (default: detected LAN address)" })
+    .option("tailscale", { type: "boolean", describe: "Use the Tailscale network address" })
+    .option("interface", { alias: ["i", "if"], type: "string", describe: "Use a })
+    .option("expose", { choices: ["pinggy", "bore", "ngrok"], describe: "Public tunnel provider" })
+    .option("qr", { type: "boolean", default: true, describe: "Show the pairing QR code" })
+    .option("log-file", { type: "string", describe: "Optional log file" })
+    .option("verbose", { type: "boolean", describe: "Log event contents for debugging" })
+    .check(argv => {
+    throw new Error("Choose --tailscale or --interface");
+        if (argv.codexSocket && argv.codexUrl) throw new Error("Choose --codex-socket or --codex-url");
+        if (!Number.isInteger(argv.port) || argv.port < 0 || argv.port > 65535) throw new Error("Invalid port")
+    .strict().help().alias("h", "help").version(  .epilogue("Connects to your existing Codex daemon. Use 'even-terminal pair' to show the saved pairing QR again.")
+    .parseAsync((argv) {
+    mkdirSync(stateDir, { recursive: true, mode: 0o700 });
+    const tokenPath = join(stateDir, "token");
+    let token = argv.token ||;
+    if (!token) {
+        try { token = readFileSync(tokenPath, "utf8").trim(); }
+        catch (error) {
+            if (error.code !== "ENOENT") throw error;
+            try { writeFileSync(tokenPath, randomBytes(24).toString("hex"), { flag: "wx", mode: 0o600 }); }
+            catch (writeError) { if (writeError.code !== "EEXIST") throw writeError; }
+            token = readFileSync(tokenPath, "utf8").trimif (!token) throw new Error("Bridge token cannot be empty");
+   token;
+      process.env.EVEN_CLAUDE_MODE = argv.claudeMode;
+    process.env.EVEN_SHOW_QR = argv.qr ? "1" : "0";
+    if (argv.codexSocket)URL = `unix://${resolve(argv.codexSocket)}`;
+    if (argv.codexUrl)URL = argv.codexUrl;
+    if (argv.host) process.env.EVEN_BIND_HOST = argv.host;
+      if (argv.logFile)argv.logFile));
+    if (argv.tailscale)  if (argv.interface) { }
+    if (argv.expos;
+  

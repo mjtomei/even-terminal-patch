@@ -1,50 +1,49 @@
-join, isAbsolute } from "node:path";
+import { realpathSync } from 'node:fs';
+import { relative, isAbsolute, basename, join } from 'node:path''node:os';
+import { createHash } from 'node:crypto';
+import { JsonlReader } from './files.js';
 
-export function defaultEndpoint(env = process.env) {
-    return env.CODEX_APP_SERVER_URL || `unix://${env.CODEX_APP_SERVER_SOCKET || join(env.CODEX_HOME || join(homedir(), ".codex"), "app-server-control", "app-server-control.sock")}`;
-}
+export const textContent = value => typeof value === 'string' ? value : Array.isArray(value)
+    ? value.filter(block => block?.type === 'text' && typeof block.text === 'string').map(block => block.text).join('\n') : '';
+const hash = text => createHash('sha256').update(text).digest('hex');
 
-export function connectionOptions(endpoint, env = process.env{ perMessageDeflate: false, handshakeTimeout: 5000, maxPayload: 64 * 1024 * 1024 };
-    if (endpoint.startsWith("unix://")) {
-        const path = endpoint.slice(7);
-        if (!isAbsolute(path) || path.includes(":")) throw new Error("Codex socket must be an absolute path without ':'");
-        return { url: `ws+unix://${path}:/`, options: { ...options, headers: { Host: "localhost" } } };
+export class SharedTranscript {
+    entries = new Map();
+    tools = new Set();
+    constructor(sessionId, path, { projectsDir = join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'projects'), onMessage = () => {}, onTool = () => {} } = {}) {sessionId; this.path = path; this.projectsDir = projectsDir;
+        this.onMessage = onMessage; this.onTool = onTool;
+        this.reader = new JsonlReader(path);
     }
-    const url = new URL(endpoint);
-    if (!["ws:", "wss:"].includes(url.protocol)) throw new Error("Codex endpoint must use unix://, ws://, or wss://");
-    const token = env.CODEX_APP_SERVER_TOKEN;
-    if (token) options.headers = { Authorization: `Bearer ${token}` };
-    return { url: endpoint, options };
-}
-
-// Connect to an existing daemon. Never start/stop Codex or automatically retry a
-// mutating RPC whose outcome is unknown after a transport failure.constructor(endpoint = defaultEndpoint(), { requestTimeoutMs = 30000 } = {}) {
-        this.endpoint = endpoint;
-        this.requestTimeoutMs = requestconnected() { return this.initialized && this.ws?; }if (this.connected)open().finally(() => {open() {
-        const { url, options } = connectionOptions(this.endpoint);
-url, options);
-try {
-            ws.once("open", resolve);
-                ws.once("error", reject);
-                ws.once("close", Codex connection closed before opening")));
-    this.handleMessage(data, ws));
-    ) => {});
-    this.disconnected(ws)this.serverInfo = name: "even_terminal_shared", version: "0.8.1-shared.1" experimentalApi: truesend({} catch (error) {
-            this.disconnected(ws, error);
-            ws.terminate();Cannot connect to the existing Codex daemon: ${error.message}`, { cause: errordisconnected(ws, error = new Error("Codex connection lost; reconnecting")!== ws) = null;erro.clear();
-orws = this.ws;
-        if (!ws) return;
-        this.disconnected(ws, ws.close();
+    add(id, role, text, notify = true, timestamp = Date.now()) {
+        if (!text?.trim())rior = this.entries.get(id);
+        if (prior?.text === text) return;
+        // A stale partial record cannot erase text already read.
+        if (prior?.text.startsWith(text)) return;
+        this.entries.set(id, { id, role, text, timestamp: prior?.timestamp ?? timestamp });
+        if (notify) this.onMessage({ id, role, text, delta: prior && text.startsWith(prior.text) ? text.slice(prior.text.length) : text, updated: !!prior });
     }
-    send(message) {
-        if (this.ws?throw new Error("Codex is disconnected")essageconnect();
-        return this.callRaw(method, params);
+    prompt(id, text, notify = true, timestamp) { this.add(`prompt:${id}`, 'user', text, notify, timestamp); }
+    reply(id, text, notify = true, timestamp) { this.add(`reply:${id}:${hash(text)}`, 'assistant', text, notify, timestamp); }
+    refresh(notify = truconst root = realpathSync(this.projectsDir), path = realpathSync(this.rel = relative(root, path);
+            if (!rel || rel.startsWith('..') || isAbsolute(rel) || basename(path) !== `${this.sessionId}.jsonl` || rel.split(/[\\/]/).includes('subagents')'Claude transcript is outside the selected local session'this.reader.path = path;
+        } catch (error) { if (error.code === 'ENOENT') return; throw error; }
+        for (const record of this.reader.read()) {
+            if (record.isSidechain || record.isMeta || (record.sessionId && record.sessionId !== this.sessionId))['user', 'assistant'].includes(record.type) || typeof record.uuid !== 'string')content = recordconst text = textContent(content);
+            // Channel inputs are recorded by the channel itself; never display their XML envelope.
+            if (record.type === 'user' && /^\s*<channel\b[^>]*\bsource=["'](?:server:)?even["']/.test(text))record.type === 'user' && /^\s*<(?:local-command|command-name|command-message|system-reminder)/.test(text)) continue;
+            this.add(`native:${record.uuid}`, record.type, text, notify, Date.parse(record.timestamp) ||if (record.type !== 'assistant' ||  continue    if (block?.type !== 'tool_use')// A proposed reply tool call is not a delivered reply. The channel
+                // records it only when Claude actually invokes the authorized tool.
+                if (block.name !== 'mcp__even__reply' && !this.tools.has(block.idthis.tools.add(block.iif (notify) this.onTool(block
     }
-   Codex request timed out: ${method}. Its outcome is unknown; check the conversation before resending.`));
-            }, this.requestry { this.send({ id, method, params });or) { clearTimeout(timer); reject(error); }Message(data, ws) {
-        if (ws !== this.ws)line of data.toString()if (!line.trim())msg;
-            try { msg = JSON.parse(line); }
-            catch { ws.close(1002, "Invalid JSON"); return; }if (msg.id == null)else        if (!pending)    if (msg.error) pending.reject(), { }));
-                else this.send({ id, result }); returnfalse) { return ( threadId, includeTurns })).thread; } return return ().thread; return return ().turn; }
-    async turnSteer(params) { return this.call("turn/steer", params); return return return (read", {})).account; }
+    ordered() { return [...this.entries.values()].sort((a, b) => a.timestamp - b.timestamp); }
+    history(limit = 10) {
+        const grouped{ role, text } of this.ordered()) {
+            if (role === 'assistant' && grouped.at(-1)?.role === role) grouped.at(-1).text += '\n\n' + text;
+            else grouped.push({ role, return grouped.slice(-Math.max(1, Math.min(Number(limit) || 10, 10)));
+    }
+    latestTurn() {
+        const entries = this.ordered();
+        const userIndex = entries.findLastIndex(entry => entry.role === 'user');
+        return { id: entries[userIndex]?.id || '', prompt: entries[userIndex]?.text || '', text: entries.slice(userIndex + 1).filter(entry => entry.role === 'assistant').map(entry => entry.text).join('\n\n') };
+    }
 }

@@ -1,72 +1,15 @@
-# Even Terminal shared sessions
+# Reconstructed package provenance
 
-This is a locally reconstructed, unofficial modification of
-`0.8.1`. Its JavaScript in `dist/` is editable
-source; no compilation step is required. Node.js 22+ is required.
+Base: `0.8.1` from the official npm registry:
+//-/even-terminal-0.8.1.tgz
 
-```bash
-npm ci --ignore-scripts
-npm test
-./even-terminal
-```
+The patch applicator verifies the pinned archive integrity and every reconstructed
+file's SHA-256. Original additions implement attachment to an existing Codex
+daemon, experimental native Claude Remote Control, transcript recovery, provider
+routing, independent bridge lifecycle, tests and launchers. No phone or glasses
+application source is included. UPSTREAM-README.md preserves the base package's
+original README and its MIT declaration.
 
-The convenience launchers require Bash. Linux ARM64 is the tested platform.
-Other platforms have not completed acceptance testing. Keep the local upstream
-README and attribution files with this installation.
-
-## Connect the glasses
-
-Keep the existing shared Codex daemon running, then start the reconstructed
-bridge. Its default socket is
-`$CODEX_HOME/app-server-control/app-server-control.sock`, with `CODEX_HOME`
-defaulting to `~/.codex`. An unavailable daemon is an error. Explicit
-`--codex-socket` and `--codex-url` options select another existing endpoint.
-Scan the bridge QR in the Even phone app and choose the existing conversation.
-The default launcher uses a reachable LAN address.
-
-For Claude, keep your normally launched terminal session open and enable native
-Remote Control there, or start it with `claude --remote-control`. Select Claude
-and that session in Even. No Even-specific Claude launcher is needed for the
-default `--claude-mode remote` connector. It uses your existing local login and
-experimental, unpublished client API endpoints. Account restrictions and future
-Claude changes can prevent access. Native Claude currently labels bridge input
-as a peer message.
-
-For automatic peer delivery, optionally merge this key into your existing
-`~/.claude/settings.json`, preserving other settings:
-
-```json
-{
-  "crossSessionInbound": "accept"
-}
-```
-
-This accepts **all incoming peers**, not only glasses. It does not change tool
-permissions. The installer does not enable it. Remove the key to restore the
-default matching policy, or use `hold` to require peer review. Managed or
-launch-time policy may override it. See [Claude's inbound-message
-documentation](https://code.claude.com/docs/en/cross-session-messaging#control-inbound-messages).
-
-## Behavior and limits
-
-- Codex input steers an active turn or starts the next idle turn on the same
-  conversation. History merges live events, cache and read-only local rollout
-  recovery. Bridge shutdown detaches without stopping the daemon.
-- Claude polls native events, restores recent history and submits to the
-  existing owner. A fresh glasses send/reply and reopen without repeated output
-  were confirmed on Claude 2.1.283. Full simultaneous three-device reconciliation
-  and live Claude permission/question/interrupt controls remain unverified.
-- `--claude-mode shared` is an older channel-launcher prototype;
-  `--claude-mode sdk` uses a separate SDK resume. Their ownership and controls
-  differ from native attachment. Neither is the default.
-- Pairing tokens, QR artifacts and caches are stored under `.state/`. Logs may
-  contain conversation content. Keep these files private. Stop the foreground
-  bridge with Ctrl+C; automatic startup is not configured.
-- Offline tests use synthetic owners and local transports. The optional
-  `scripts/live-smoke.mjs` sends a real Codex prompt and uses model quota;
-  `scripts/probe-claude-remote.mjs --send` also submits a real prompt. Do not run
-  either as part of an ordinary installation test. Other probes read private
-  session data and may create private reports.
-
-See NOTICE.md for upstream attribution. Upstream material and dependencies
-retain their respective terms. The package is private to npm.
+This installation was assembled locally from that separately obtained base and
+the numeric COPY/INSERT patch. The patch is specific to 0.8.1 and does not claim
+compatibility with later upstream releases. See NOTICE.md for license scope.

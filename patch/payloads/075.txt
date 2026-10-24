@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { paperSessionTitle, sessionTitleCapabilities, nameNewPaperSession } from '../dist/routes/pageborne-session-titles.js';
+
+test('paper titles are readable bounded metadata, including Unicode and missing titles', () => {
+  assert.equal(paperSessionTitle('  Équations\n &\tfigures\0 '), 'Équations & figures');
+  assert.equal(paperSessionTitle(undefined), 'Untitled paper');
+  assert.equal(paperSessionTitle(' \n '), 'Untitled paper');
+  assert.equal(paperSessionTitle('📖'.repeat(301)), '📖'.repeat(300));
+});
+
+test('the optional extension names only newly created sessions supported by their provider', async () => {
+  const calls = [], result = { sessionId: 'new-id', provider: 'codex' };
+  const provider = { setSessionTitle: async (...args) => calls.push(args) };
+  assert.deepEqual(sessionTitleCapabilities(provider), { sessionTitles: 1 });
+  assert.deepEqual(sessionTitleCapabilities({}), {});
+  assert.deepEqual(await nameNewPaperSession(provider, result, { sessionTitle: 'Giving\nReasons' }), { ...result, sessionTitle: 'Giving Reasons' });
+  assert.deepEqual(calls, [['new-id', 'Giving Reasons']]);
+  for (const options of [{}, { sessionTitle: '  ' }, { sessionTitle: 4 }, { sessionId: 'linked', sessionTitle: 'Replacement' }]) {
+    assert.equal(await nameNewPaperSession(provider, result, options), result);
+  }
+  assert.equal(calls.length, 1);
+  assert.equal(await nameNewPaperSession({}, result, { sessionTitle: 'Paper' }), result);
+});
+
+test('unsupported or stalled rename still returns the accepted session, without resending a prompt', async () => {
+  const result = { sessionId: 'already-created', provider: 'codex' };
+  for (const setSessionTitle of [async () => { throw new Error('Unsupported'); }, () => { throw new Error('Synchronous'); }, () => new Promise(() => {})]) {
+    const provider = { setSessionTitle, prompt: () => assert.fail('must not resend') };
+    assert.equal(await nameNewPaperSession(provider, result, { sessionTitle: 'Paper' }, 5), result);
+  }
+});

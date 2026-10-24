@@ -1,4 +1,77 @@
-type = ;
-    if (type === "active") {
-        return thread.status.activeFlags?.some(f => ff ? "awaiting" : "busyaitingOnApproval" || ttype)hread?.turns?.some(t => t.status === "inProgress") ? "busy" : "idle";
+import { open, realpath } from "node:fs/promisejoin, sep } from "node:path";
+
+const MAX_ROLLOUT_BYTES = 8 * 1024 * 1024;
+const MAX_HEADER_BYTES = 1024 * 1024;
+
+async function readRange(file, offset, length) {
+    const buffer = Buffer.alloc(length);
+    let read = 0;
+    while (read < length) {
+        const { bytesRead } = await file.read(buffer, read, length - read, offset + read);
+        if (!bytesRead) break;
+        read += bytesRead;
+    }
+    return buffer.subarray(0, read);
+}
+
+async function recentRollout(file, size) {
+    if (size <= MAX_ROLLOUT_BYTES) return (await readRange(file, 0, size)).toString("utf8");
+    // Recover recent messages without loading a multi-hundred-MB rollout.
+    // Keep the first record so session identity is still checked. Reading one
+    // byte before the tail preserves complete records at an exact boundary.
+    const header = await readRange(file, 0, Math.min(size, MAX_HEADER_BYTES));
+    const headerEnd = header.indexOf(10);
+    if (headerEnd < 0) return "";
+    const metadata = JSON.parse(header.subarray(0, headerEnd).toString("utf8"));
+    if (metadata.type !== "session_meta") return "";
+    const start = size - MAX_ROLLOUT_BYTES - 1;
+    const tail = await readRange(file, start, MAX_ROLLOUT_BYTES + 1);
+    const firstNewline = tail.indexOf(10);
+    if (firstNewline < 0) return "";
+    return header.subarray(0, headerEnd).toString("utf8") + "\n" + tail.subarray(firstNewline + 1).toString("utf8");
+}
+
+export function parseRollout(source) {
+    const turns = new Map();
+    let id;
+    let skipped = 0;
+    for (const line of sourceif (!line.trim()) continue;
+        let record;
+        try { record = JSON.parse(line); } catch { skipped++; continue; }
+        const p = record.payload;
+        if (record.type === "session_meta") { id = p?.id; continue; }
+        if (record.type !== "event_msg" || !p?.turn_id)isItem = p.type === "item_completed" && ["UserMessage", "AgentMessage"].includes(p.item?.type);
+        if (!isItem && p.type !== "task_started" && p.type !== "task_complete") continue;
+        let turn = turns.get(p.turn_id);
+        if (!turn) {
+            turn = { id: p.turn_id, startedAt: Date.parse(record.timestamp) / 1000, items: [] };
+            turns.set(turn.id, turnp.type === "task_started") turn.status = "inProgress";
+        else if (p.type === "task_complete") turn.status = "completed";onst item = p.item;
+            turn.items.push({ id: item.id, completetype: item.type === "UserMessage" ? "userMessage" : "agentMessage", content: item.content,
+                text: (item.content || []).filter(c => c.type === "Text").map(c => c.text || "").join("\n"}
+    }
+    return { id, turns: [...turns.values()], skipped };
+}
+
+export async function mergeLocalRollout(client, session, thread) {
+    if (thread) session.rolloutPath = thread.path;
+    // A remote daemon's path belongs to its host, not this bridge's machine.
+    if (!session.rolloutPath || !/^(unix:\/\/|ws\+unix:\/\/|\/)/.test(client.endpoint)) returnome = await realpath(process.env.CODEX_HOME || join(homedir(), ".codex"));
+        const path = await realpath(session.rolloutPath);
+        if (!["sessions", "archived_sessions"].some(dir => path.startsWith(join(home, dir) + sep))) return;
+        let recovered, version;
+        const file = await open(path, "r"info = await file.stat();
+            if (!info.isFile()) return`${path}:${info.size}:${info.mtimeMs}`;
+            if (version === session.rolloutVersion) return;
+            recovered = parseRollout(await recentRollout(file, info.size));
+        } finally { await file.close(); }
+        if (recovered.id !== session.id) return;
+        session.transcript.merge(recovered.turns);
+        session.rolloutVersion = version;
+        if (recovered.skipped && !session.rolloutWarningrolloutWarningwarn(`[codex-history] Skipped ${recovered.skipped} malformed rollout record(s); recovered valid text for ${session.id}`);
+        }
+    } catch {
+        // Optional local fallback. The daemon and live cache remain usable if
+        // the rollout is unavailable, moves, or belongs to another Codex home.
+    }
 }

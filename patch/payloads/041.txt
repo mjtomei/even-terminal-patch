@@ -1,16 +1,17 @@
-let getProvider;
-export function setSessionProviderResolver(resolver) { getProvider = resolver; }q.query.provider, sessionId);
-    await provider.attach?.(sessionId);
-    if (res.destroyed) returnconst cursor = Number(req.headers["last-event-id"] || req.query.after);
-    const canReplay = Number.isSafeInteger(cursor) && cursor >= (s.messages[0]?.id ?? 1) - 1 && cursor < s.nextId;
-    const replay = canReplay || ;
-    let replayedCount = 0;
-    if (replay) {if (canReplay && entry.id <= cursor)provider.isReplayable?.(sessionId, entry.msg) === false)    replaye// Fresh connections bootstrap the active turn from the daemon's snapshot;
-    // old pending approval cards are never replayed from a stale bridge buffer.
-    const initialTypes = [];
-    for (const msg of provider.initialMessages?.(sessionId, !replay || !s.messages.length) || []) {
-        if (replay && s.messages.some(e => e.msg.type === msg.type && e.msg.toolUseId === msg.toolUseId) && ["permission_request", "user_question"].includes(msg.type)) continue;
-        res.write(`data: ${JSON.stringify(msg)}\n\n`);
-        initialTypes.push(msg.type);
-    }
-    res.write(`id: ${s.nextId - 1}\n:cursor\n\n`); replay=${replay} cursor=${canReplay ? cursor : 'none'} replayed=${replayedCount} initial=${initialTypes.join(',')}
+// Keep routing metadata in diagnostics without logging query-string tokens,
+// request bodies, or conversation content.
+export function requestDetails(req) {
+    const path = (req.originalUrl || req.path || '').split('?')[0];
+    const requested = req.query?requested === undefined
+        ? '(omitted)'
+        : ['claude', 'codex'].includes(requested) ? requested : '[unsupported]';
+    const id = req.query?.sessionId || path.match(/\/sessions\/([^/]+)\/history$/)?.[1]id === undefined ? undefined
+        : typeof id === 'string' && (/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id) || /^cse_[A-Za-z0-9]+$/.test(id)) ? id : '[invalid]';
+    return { provider, sessionId };
+}
+
+export function errorDetails(error, token) {
+    const message = String(error?.message || 'Unknown error');
+    return { message: (token ? message.replaceAll(token, '[redacted]') : message).slice(0, 500),
+        rpcCode: error?.rpcCode };
+}

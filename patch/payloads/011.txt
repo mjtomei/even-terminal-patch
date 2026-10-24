@@ -1,41 +1,54 @@
-'../summarize.js';
+import { execFile } from 'node:child_process''node:util';
+import { mkdir, readFile, writeFile, realpath, stat } from 'node:fs/promises''node:os';
+import path from 'node:path';
+import { localBindings } from './bindings.js';
+import { fail } from './client.js';
 
-export const sequence = value => {
-    try { return /^\d+$/.test(String(value)) ? BigInt(value) : null; } catch { return null; }
-};
-export const textContent = content => typeof content === 'string' ? content : Array.isArray(content)
-    ? content.filter(b => b?.type === 'text' && typeof b.text === 'string').map(b => b.text).join('\n') : '';
+const execute = promisify(execFile);
+const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
+const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
 
-export class RemoteTranscript {
-    entries = new Map();
-    seen = new Map();
-    constructor(id, emit) { this.id = id; this.emit = emit; }
-    ingest(envelope, notifyevent = envelope.payload;
-        if (!event || event.parent_tool_use_id) return;
-        const key = `${event.type}:${event.uuid || envelope.event_id || envelope.sequence_num}`;
-        if (this.seen.has(key))en.add(key);
-        if (this.seen.size > 10000) this.seen.delete(this.seen.values().next().value);
-        const send = message => { if (notify) this.emit(message); };
-        if (['user', 'assistant'].includes(event.typeext = textContent(event.message?.content);
-            if (text.trim() && !event.isMeta && !event.isSyntheticntries.set(key, { role: event.typethis.entries.size > 1000) this.entries.delete(this.entries.keys().next().value);
-                send(event.type === 'user' ? { type: 'user_prompt', text } : { type: 'text_delta', text: `\n\n${text}`if (event.type === 'assistant' && Array.isArray(event.message?for (const block of event.message.content) if (block?.type === 'tool_use'nd({ type: 'tool_start', name: block.name, toolId: block.id,|| {}) else if (event.type === 'control_request' && event.request?.subtype === 'can_use_tool') {event.request_id, event.request);
-            send(this.permissionMessage(event.request_id, event.request));
-        } else if (['control_response', 'control_cancel_request'].includes(event.type)Id = event.response?.request_id || event.request_id; = this.pending.getif (request.delete    send({ type: 'permission_result', toolUseId: requestId, toolName: request.tool_name, decision: 'resolved', resolvedExternally: true, summary: 'Request answered in Claude' else if (event.type === 'result') {
-            send({ type: 'result', success: !event.is_error, text: event.result || '', sessionId: this.id, provider: 'claude',
-                costUsd: event.total_cost_usd || 0, turns: event.num_turns || 1, durationMs: event.duration_ms || 0ermissionMessage(requestId, request) {
-        if (request.tool_name === 'AskUserQuestion') return { type: 'user_question', toolUseId: requestId, questions: request.input?.questions || [] };
-        return { type: 'permission_request', toolUseId: requestId, toolName: request.tool_nrequest.tool_name, request.input || {}[{ text: 'Yes', key: 'allow' }, { text: 'No', key: 'deny' }] };
+// A normal interactive CLI owns each conversation, independently of the HTTP
+// bridge. A private tmux server keeps it available to native Remote Control.
+// Creation is explicitly enabled on this desktop; existing sessions are never
+// resumed, forked, or given a different model or permission configuration.
+export function createNativeSessionLauncher({ model, cli = process.env.PAGEBORNE_CLAUDE_CLI || 'claude',
+    stateDir = path.join(homedir(), '.pageborne', 'claude-sessions'),
+    defaultCwd = path.join(homedir(), '.pageborne', 'library'),
+    run = execute, bindings = localBindings, timeoutMs = 20000 } = {}) {
+    if (!model) return undefined;
+    const tasks = new Map();
+    async function prepare({ requestId, cwd = defaultCwd, title = 'Pageborne' }) {
+        if (!uuid(requestId) || typeof cwd !== 'string' || !path.isAbsolute(cwd) || /[\x00-\x1f]/.test(cwd) ||
+            typeof title !== 'string' || [...title].length > 300 || /[\x00-\x1f]/.test(title)) throw fail('Invalid Claude session request.', 400);
+        cwd = await realpath(cwd);
+        if (!(await stat(cwd)).isDirectory()) throw fail('Claude session directory is unavailable.', 400);
+        title = title.trim() || 'Pageborne';
+        await mkdir(stateDir, { recursive: true, mode: 0o700 });
+        const record = { sessionId: requestId, cwd, title, model };
+        const file = path.join(stateDir, `${requestId}.json`);
+        let fresh = false;
+        try { await writeFile(file, JSON.stringify(record), { flag: 'wx', mode: 0o600 }); fresh = true; }
+        catch (error) {
+            if (error.code !== 'EEXIST') throw error;
+            const saved = JSON.parse(await readFile(file, 'utf8'));
+            if (saved.cwd !== cwd || saved.title !== title || saved.model !== model) throw fail('This session request already belongs to another conversation.', 409tching = () => bindings().filter(b => b.localId === requestId && b.cwd === cwd);
+        if (matching().length === 1) return record;
+        const name = `pb-${requestId}`;
+        const exists = async () => { try { await run('tmux', ['-L', 'pageborne-claude', 'has-session', '-t', name], { timeout: 5000 }); return true; } catch { return false; } };
+        if (!await exists()) {
+            if (!fresh) throw fail('The shared Claude session has closed. Start a new session in Ask, or reopen it on the desktop.', 409);
+            const args = [cli, '--model', model, '--permission-mode', 'default', '--remote-control', title, '--name', title, '--session-id', requestId];
+            try { await run('tmux', ['-L', 'pageborne-claude', 'new-session', '-d', '-s', name, '-c', cwd, `exec ${args.map(quote).join(' ')}`], { timeout: 10000 }); }
+            catch { throw fail('Could not start the shared Claude desktop session. Check the Claude CLI and tmux installation.', 503);imeoutMs;
+              if (matching().length === 1) return record;
+            await new Promise(resolve => setTimeout(resolve, 200row fail('Claude is waiting for desktop setup. Open its Pageborne session on the desktop, then retry; your question has not been sent.', 503);
     }
-    history(limit = 10) {
-        const groupedentry of this.entrieif (entry.role === 'assistant' && grouped.at(-1)?.role === 'assistant') grouped.at(-1).text += `\n\n${entry.text}`;
-            else grouped.push({ ...entrygrouped.slice(-Math.max(1, Math.min(Number(limit) || 10, 10)));
-    }
-    initialMessages() {
-        const entries = [...this.entries.values()];
-        const lastUser = entries.findLastIndex(entry => entry.role === 'user');[];
-        if (lastUser >= 0) messages.push({ type: 'user_prompt', text: entries[lastUser].text });
-        const text = entries.slice(lastUser + 1).filter(entry => entry.role === 'assistant').map(entry => entry.text).join('\n\n');
-        if (text) messages.push({ type: 'text_delta', text });
-        return messages;
-    }
+    return { model, prepare(input) {
+        // Serialise identical retries, including during connection loss. The
+        // durable reservation prevents another launch after a bridge restart.
+        const key = JSON.stringify(input);
+        if (!tasks.has(key)) tasks.set(key, prepare(input).finally(() => tasks.delete(key)));
+        return tasks.get(key);
+    } };
 }

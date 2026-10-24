@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { requestDetails, errorDetails } from '../dist/request-diagnostics.js';
+
+test('request diagnostics show provider/session routing without query tokens or bodies', () => {
+    const id = '00000000-0000-4000-8000-000000000001';
+    const details = requestDetails({ originalUrl: `/api/events?sessionId=${id}&token=secret`,
+        query: 'claude', token: 'secret' }, body: { text: 'private conversation' } });
+    assert.deepEqual(details, { provider: 'claude', sessionId: id });
+    assert.equal(requestDetails({ path: '/api/events', query: { sessionId: id } }).provider, '(omitted)');
+    assert.equal(requestDetails({ originalUrl: `/api/sessions/${id}/history?token=secret` }).sessionId, id);
+    assert.deepEqual(requestDetails({ path: '/api/events', query: { provider: 'secret', sessionId: 'private text' } }),
+        { provider: '[unsupported]', sessionId: '[invalid]' });
+});
+
+test('error diagnostics redact the pairing credential and retain the RPC error code', () => {
+    const details = errorDetails({ message: 'Request using secret-token failed: secret-token', rpcCode: -32603 }, 'secret-token');
+    assert.equal(details.message, 'Request using [redacted] failed: [redacted]');
+    assert.equal(details.rpcCode, -32603);
+});

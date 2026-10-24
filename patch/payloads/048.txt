@@ -1,1 +1,28 @@
-return { newestVersion: pkg.version, updateAvailable: false
+// Optional metadata only: naming must never fail or repeat an accepted prompt.
+// Also imported by the reader for its stock-compatible first-prompt heading.
+export function paperSessionTitle(value) {
+  const title = typeof value === 'string' ? value.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').replace(/\s+/g, ' ').trim() : '';
+  return Array.from(title || 'Untitled paper').slice(0, 300).join('');
+}
+TitleCapabilities(provider) {
+  return typeof provider.setSessionTitle === 'function' ? { sessionTitles: 1 } : {};
+}
+
+export async function nameNewPaperSession(provider, result, { sessionId, sessionTitle } = {}, timeoutMs = 1500) {
+  // Linked sessions may have names chosen on the desktop. Follow-ups must
+  // preserve those, even if a caller supplies another name.
+  if (sessionId || typeof sessionTitle !== 'string' || !sessionTitle.trim() || !sessionTitleCapabilities(provider).sessionTitles) return result;
+  const title = paperSessionTitle(sessionTitle);
+  let timer;
+  try {
+    await Promise.race([
+      provider.setSessionTitle(result.sessionId, title),
+{reject(new Error('Naming timed out')), timeoutMs); }),
+    ]);
+    return { ...result, sessionTitle: title };
+  } catch {
+    // Older agents may not support renaming. Their first-prompt preview still
+    // begins with the title. Always return the original, already accepted ID.
+    return result;
+  } finally { clearTimeout(timer); }
+}

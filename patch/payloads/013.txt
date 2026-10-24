@@ -1,182 +1,54 @@
-'node:http';
-import { appendFile'node:fs';
-import { join } from 'node:path';
-import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { once } from 'node:events';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
-import { atomicJson, readJson, privateDir, JsonlReader, uuid, fail } from './files.js';
-import { SharedTranscript } from './transcript.js''../summarize.js';
+'../summarize.js';
 
-const capabilities = { prompts: true, history: true, permissions: true, questions: false, interrupt: false, tokenStreaming: false };
-export class ClaudeChannel {
-    instanceId = randomUUID();
-    token = randomBytes(32).toString('hex');
-    sessionId = null;
-    generation = null;
-    state = 'idle';
-    events = [];
-    sequence = 0activeTools = new Map();
-    prompts = new Map();
-    ready = false;
-    closed = false;
-    serial = Promise.resolve();
-    constructor(dir, { notify, projectsDir, pollMs = 300 } = {}) {
-        this.dir = privateDir(dir); this.notify = notify; this.projectsDir = projectsDir; this.pollMs = pollMs;
-        this.hooks = new JsonlReader(join(dir, 'hooks.jsonl'));
-    }
-    publish(message) {
-        this.events.push({ id: ++this.sequence, message });
-        if (this.events.length > 500) this.events.shift();
-    }
-    status(state = this.state) {
-        this.state = state;
-        this.publish({ type: 'status', state: this.pending.size ? 'awaiting' :, provider: 'claude' });
-    }
-    register() {
-        if (!this.port) return;
-        atomicJson(join(this.dir, 'endpoint.json'), { instanceId: this.instanceId, pid: process.pid, port: this.port, token: this.tokenis.sessionId, generation: this.generation, cwd: this.cwd, model: this.model,
-            title: this.title, timestamp: Date.now() });
-    }
-    bind(event) {
-        if (!uuid(event.session_id) || typeof event.transcript_path !== 'string') return;
-        if (event.session_id === this.sessionId && this.transcript?.path === event.transcript_path) {
-            this.model = event.model || this.model; this.cwd = event.cwd || this.cwd;
-            this.title = event.session_title || this.title; this.register();sessionId = event.session_id; this.generation = randomUUID();
-        this.cwd = event.cwd; this.model = event.model || ''; this.title = event.session_title || 'Shared Claude'; this.activeTools.clear(); this.prompts.clear(); this.events = []; this.sequence = 0; this.state = 'idle';
-        this.transcript = new SharedTranscript(this.sessionId, event.transcript_path, {
-            projectsDir: this.projectsDir,
-            onMessage: entryentry.role === 'user'ublish({ type: 'user_prompt', text: entry    this.status('busy');
-                }publish({ type: 'text_delta', text: (entry.updated ? '' : '\n\n') + entry.delta,
-            onTool: block => this.publish({ type: 'tool_start', name: block.name, toolId: block.i|| {}) this.transcript.refresh(false);
-        // Actions persist channel prompts/replies that are not ordinary native messages.
-        const replay = new JsonlReader(join(this.dir, 'actions.jsonl'));
-        for (const action of replay.read()) this.restoreAction(action);
-        this.register(); this.status();
-    }
-    restoreAction(action) {
-        if (action.sessionId !== this.sessionId) return;
-        if (action.type === 'prompt') {
-            this.prompts.set(action.promptId, action.text);
-            this.transcript.prompt(action.promptId, action.text, false, action.timestamp);
-        } else if (action.type === 'reply') this.transcript.reply(action.promptId, action.text, false, action.timestamp);
-    }
-    saveAction(type, promptId, text) {
-        appendFileSync(join(this.dir, 'actions.jsonl'), JSON.stringify({ typ, promptId, text, timestamp: Date.now() }) + '\n'}
-    clearPermissions(predicate = () => true) {
-        for (const [id, requestif (!predicate(request)) continuethis.publish({ type: 'permission_result', toolName: request.tool_name, toolUseId: i'Permission request closed in Claude', decision: 'resolved', resolvedExternally: truefreshevent of this.hooks.read()) {
-            if (event.hook_event_name === 'SessionStart') { this.bind(event); continue; }
-            if (event.session_id !== this.sessionId || !this.transcript) continue;
-            this.transcript.refresh();
-            switch (event.hook_event_name) {
-                case 'SessionEnd':clearPermissions(); this.status('idle'ssionId = null; this.generation = null; this.register();case 'UserPromptSubmit': this.status('busy');case 'PreToolUse':vent.tool_use_id) this.activeTools.set(event.tool_use_id, event.tool_namthis.status('busy');case 'PostToolUse':
-                case 'PostToolUseFailure':
-                case 'PermissionDenied':
-                    // A channel ID is not a tool-use ID. Only retire requests that
-                    // were unambiguously associated with this exact tool invocation.clearPermissions(p => p.toolUseId && p.toolUseId === event.tool_use_iis.activeTools.delete(event.tool_use_iis.status();case 'Stop':
-                case 'StopFailure'this.clearPermissionsactiveTools    const turn = this.transcript.latestTurnpublish({ type: 'result', success: event.hook_event_name === 'Stop', text: turn.tex provider: 'claude', costUsd: 0, turns: 1, durationMs: 0this.status('idle');        case 'Notification':ublish({ type: 'notification', title: event.title || 'Claude', message: event.message || '' });if (this.sessionId) this.transcript?.refresh();
-    }
-    guard(sessionId, generation) {
-        if (!this.ready || !this.sessionId) throw fail('Claude channel is not ready. Open a session with even-terminal claude.', 503!== this.sessionId || generation !== this.generation) throw fail('Claude changed conversations. Select its current session again.');
-    }
-    snapshot() {
-        return { instanceId: this.instanceId, generation: this.generation,
-            ready: this.ready, status: this.pending.size ? 'awaiting' : this.state,
-            cwd: this.cwd, model: this.model, title: this.title, capabilities,
-            history: this.transcript?.history() || [], turn: this.transcript?.latestTurn() || { prompt: '', text: '' },
-            events: this.events, sequence: this.sequence, pending: [...this.pending.values()].map(request => this.permissionMessage(request)) };
-    }
-    permissionMessage(request) {
-        return { type: 'permission_request', toolUseId: request.request_id, toolName: request.tool_n: request.description, detail: request.input_preview,
-            options: [{ text: 'Yes', key: 'allow' }, { text: 'No', key: 'deny' }] };
-    }
-    permission(request) {
-        this.refresh();
-        if (!this.sessionId) return;
-        const matchingTools = [...this.activeTools].filter(([, name]) => name === request.tool_name);
-request.request_id, { ...request, toolUseId: matchingTools.length === 1 ? matchingTools[0][0] : undefined });
-        this.publish(this.permissionMessage(request)); this.status();
-    }
-    async prompt({ sessionId, generation, text, promptId }) {
-        this.guard(sessionId, generation);
-        if (!uuid(promptId) || typeof text !== 'string' || !text.trim() || text.length > 32000) throw fail('Invalid Claude prompt', 400);s.has(promptId)) throw fail('Prompt ID was already submitted. It will not be sent again.');
-        // Reserve identity before the write. A failed/ambiguous write is never resent.
-        this.prompts.set(promptId, text);
-        await this.notify({ method: 'notifications/claude/channel', params: { content: text,
-            meta: { prompt_id: promptId, session_id: sessionId, generation } } });
-        this.guard(sessionId, generation);
-        this.saveAction('prompt', promptId, text);
-        this.transcript.prompt(promptId, text);
-        return { accepted: true, promptId, delivery: 'written_to_channel' };
-    }
-    async respondPermission({ sessionId, generation, requestId, decision }) {
-        this.guard(sessionId, generation);
-        if (!requestId) throw fail('A permission request ID is required; answer this request in Claude if the Even app cannot supply it.').get(requestI throw fail('This Claude permission request is no longer pending');
-        if (!['allow', 'deny'].includes(decision)) throw fail('Claude channels support allow or deny for this call only', 400);
-        await this.notify({ method: 'notifications/claude/channel/permission', params: { request_id: requestId, behavior: decision } })requestId);
-        this.publish({ type: 'permission_result', toolName: pending.tool_name, toolUseId:summary: 'Decision sent to Claude','allow' ? 'allowed' : 'denied' });
-        this.status();
-        return { submitted: true }; // Native Claude applies first-wins request-ID validation.
-    }
-    async reply({ prompt_id: promptId, text, session_id: sessionId, generation }) {
-        this.refresh(); this.guard(sessionId, generation);
-        if (!this.prompts.has(promptId) || typeof text !== 'string' || !text.trim() || text.length > 128000) throw fail('Unknown prompt or invalid reply');
-        this.saveAction('reply', promptId, text);
-        this.transcript.reply(promptId, text);
-        return { content: [{ type: 'text', text }] }) {
-        this.http = createServer((req, reexpected = Buffer.from(`Bearer ${this.token}`), supplied = Buffer.from( || '');
-            res.setHeader('Cache-Control', 'no-store');
-            if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) { res.writeHead(401); res.end(); return; }
-            const run = let body = '', inputreq.method === 'POST'for await (const chunk of req) { body += chunk; if (body.length > 256000) throw fail('Request too large', 413);try { input = JSON.parse(body); } catch { throw fail('Invalid JSON', 400); }    this.refreshconst url = new URL(req.url, 'http://localhost');
-                    let resultreq.method === 'GET' && url.pathname === '/snapshot'this.guard(url.searchParams.get('sessionId'), url.searchParams.get('generation')result = this.snapshot} else if (req.method === 'POST' && url.pathname === '/prompt') result = await this.prompt(input);
-    req.method === 'POST' && url.pathname === '/permission') result = await this.respondPermission(input);
-                    else throw fail('Not found', 404);
-                    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(result));
-                } catch (errores.writeHead(error.statusCode || 500, { 'Content-Type': 'application/json'res.end(JSON.stringify({ error: error.message });
-            // Serialize mutations, with HTTP timeouts bounding incomplete bodies.
-            this.serial = this.serial.then(run, ruthis.http.requestTimeout = 5000;
-        this.http.headersTimeout = 5000;
-        this.http.listen(0, '127.0.0.1'); await once(this.http, 'listening');
-        this.port = this.http.address().port;
-        this.refresh(); this.register();
-        this.t{
-            try { this.refresh(); } catch (error) { process.stderr.write(`[even-channel] ${error.message}\n`); }
-        }, this.pollMs);
-        this.timer.unref();
-        return thisclosed) return; this.closed = true; this.ready = false;
-timer);
-        const file = join(this.dir, 'endpoint.json');
-        try { if (readJson(file).instanceId === this.instanceId) unlinkSync(file); } catch { }
-        this.http?.closeAllConnections();
-        if (this.http?.listening) await new Promise(resolve => this.http.close(resolve));
-        // No denial, interrupt, process signal, or Claude session shutdown here.
-    }
-}
+export const sequence = value => {
+    try { return /^\d+$/.test(String(value)) ? BigInt(value) : null; } catch { return null; }
+};
+export const textContent = content => typeof content === 'string' ? content : Array.isArray(content)
+    ? content.filter(b => b?.type === 'text' && typeof b.text === 'string').map(b => b.text).join('\n') : '';
 
-export async function runChannel() {
-    const channel = new ClaudeChannel(process.env.EVEN_CLAUDE_LAUNCH_DIR);
-    const mcp = new Server({ name: 'even', version: '0.1.0' }, {
-        capabilities: { experimental: { 'claude/channel': {}, 'claude/channel/permission': {} }, tools: {} },
-        instructions: 'Messages from the even channel are the user speaking from their Even glasses or phone in this same conversation. Answer these messages using the reply tool. Copy prompt_id, session_id and generation from the channel metadata. The reply is shown on the glasses and in this terminal; do not repeat it as a second ordinary assistant message. For terminal and native Remote Control prompts, respond normally. Keep your existing instructions and permission settings.',
-    });
-    channel.notify = message => mcp.notification(message);
-    mcp.setRequestHandler(ListToolsRequestSchema, () => ({ tools: [{ name: 'reply', description: 'Reply to a message from the user’s Even glasses or phone.',
-        inputSchema: { type: 'object', properties: { prompt_id: { type: 'string' }, session_id: { type: 'string' }, generation: { type: 'string' }, text: { type: 'string' } },
-            required: ['prompt_id', 'session_id', 'generation', 'text'], additionalProperties: false } }] }));
-    mcp.setRequestHandler(CallToolRequestSchema, async request => {
-        if (request.params.name !== 'reply') throw new Error('Unknown Even tool');
-        try { return await channel.reply(request.params.arguments || {}); }
-        catch (error) { return { isError: true, content: [{ type: 'text', text: error.message }] }; }
-    });
-    mcp.setNotificationHandler(z.object({ method: z.literal('notifications/claude/channel/permission_request'), params: z.object({
-        request_id: z.string(), tool_name: z.string(), description: z.string(), input_preview: z.string(),
-    }) }), notification => channel.permission(notification.params));
-    mcp.oninitialized = () => { channel.ready = true; channel.register(); };
-    mcp.onclose = () => { void channel.close().finally(() => process.exit(0)); };
-    await channel.start();
-    await mcp.connect(new StdioServerTransport());
-    const shutdown = async () => { await channel.close(); await mcp.close(); process.exit(0); };
-    process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);
+export class RemoteTranscript {
+    entries = new Map();
+    seen = new Map();
+    outcomes = new Map();
+    lastUser;
+    constructor(id, emit) { this.id = id; this.emit = emit; }
+    ingest(envelope, notifyevent = envelope.payload;
+        if (!event || event.parent_tool_use_id) return;
+        const key = `${event.type}:${event.uuid || envelope.event_id || envelope.sequence_num}`;
+        if (this.seen.has(key))en.add(key);
+        if (this.seen.size > 10000) this.seen.delete(this.seen.values().next().value);
+        const send = message => { if (notify) this.emit(message); };
+        if (['user', 'assistant'].includes(event.typeext = textContent(event.message?.content);
+            if (text.trim() && !event.isMeta && !event.isSyntheticntries.set(key, { role: event.typeevent.type === 'user') this.lastUser = keyentries.size > 1000) this.entries.delete(this.entries.keys().next().value);
+                send(event.type === 'user' ? { type: 'user_prompt', text } : { type: 'text_delta', text: `\n\n${text}`if (event.type === 'assistant' && Array.isArray(event.message?for (const block of event.message.content) if (block?.type === 'tool_use'nd({ type: 'tool_start', name: block.name, toolId: block.id,|| {}) else if (event.type === 'control_request' && event.request?.subtype === 'can_use_tool') {event.request_id, event.request);
+            send(this.permissionMessage(event.request_id, event.request));
+        } else if (['control_response', 'control_cancel_request'].includes(event.type)Id = event.response?.request_id || event.request_id; = this.pending.getif (request.delete    send({ type: 'permission_result', toolUseId: requestId, toolName: request.tool_name, decision: 'resolved', resolvedExternally: true, summary: 'Request answered in Claude' else if (event.type === 'result') {
+            if (this.lastUser) this.outcomes.set(this.lastUser, event.is_error ? 'failed' : 'completed');
+            if (this.outcomes.size > 1000) this.outcomes.delete(this.outcomes.keys().next().value);
+            send({ type: 'result', success: !event.is_error, text: event.result || '', sessionId: this.id, provider: 'claude',
+                costUsd: event.total_cost_usd || 0, turns: event.num_turns || 1, durationMs: event.duration_ms || 0ermissionMessage(requestId, request) {
+        if (request.tool_name === 'AskUserQuestion') return { type: 'user_question', toolUseId: requestId, questions: request.input?.questions || [] };
+        return { type: 'permission_request', toolUseId: requestId, toolName: request.tool_nrequest.tool_name, request.input || {}[{ text: 'Yes', key: 'allow' }, { text: 'No', key: 'deny' }] };
+    }
+    history(limit = 10) {
+        const groupedentry of this.entrieif (entry.role === 'assistant' && grouped.at(-1)?.role === 'assistant') grouped.at(-1).text += `\n\n${entry.text}`;
+            else grouped.push({ ...entrygrouped.slice(-Math.max(1, Math.min(Number(limit) || 10, 10)));
+    }
+    snapshot(state = 'idle') {
+        const turnskey, entry] of this.entries) {
+            if (entry.role === 'user' || !turns.length) turns.push({ id: `claude:${key}`, status: this.outcomes.get(key) || 'completed', items: [] });
+            turns.at(-1).items.push(entry.role === 'user'
+                ? { id: key, type: 'userMessage', content: [{ type: 'text', text: entry.text }] }
+                : { id: key, type: 'agentMessage', text: entryconst last = turns.at(-1);
+        if (last && !this.outcomes.has(this.lastUser) && (state !== 'idle' || last.items.at(-1).type === 'userMessage')) last.status = 'inProgress';
+        return turns.slice(-40);
+    }
+    initialMessages() {
+        const entries = [...this.entries.values()];
+        const lastUser = entries.findLastIndex(entry => entry.role === 'user');[];
+        if (lastUser >= 0) messages.push({ type: 'user_prompt', text: entries[lastUser].text });
+        const text = entries.slice(lastUser + 1).filter(entry => entry.role === 'assistant').map(entry => entry.text).join('\n\n');
+        if (text) messages.push({ type: 'text_delta', text });
+        return messages;
+    }
 }

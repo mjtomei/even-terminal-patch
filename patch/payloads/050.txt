@@ -1,8 +1,1 @@
-#!/usr/bin/env bash
-set -euo pipefail
-EVEN_BRIDGE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-export EVEN_TERMINAL_STATE_DIR="${EVEN_TERMINAL_STATE_DIR:-$EVEN_BRIDGE_ROOT/.state}"
-export DEFAULT_PROVIDER="${DEFAULT_PROVIDER:-codex}"
-umask 077
-mkdir -p -- "$EVEN_TERMINAL_STATE_DIR"
-exec node "$EVEN_BRIDGE_ROOT/bin/cli.js" "$@"
+odex

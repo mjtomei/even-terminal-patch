@@ -1,2 +1,0 @@
-, mode: 0o600 });
-            fileStream.on("error", error => { process.stderr.write(`Log file error: ${error.message}\n`); fileStream = null;
