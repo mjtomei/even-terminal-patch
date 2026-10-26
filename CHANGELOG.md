@@ -1,5 +1,12 @@
 # Changes
 
+## 0.2.3 — 2026-10-26
+
+- Include optional addition/modification timestamps in library metadata.
+- Preserve addition dates across file replacements; copied originals retain their
+  actual library addition order even when their modification dates are old.
+- Reconstruct `0.8.1-shared.5`; chat and legacy glasses interfaces are unchanged.
+
 ## 0.2.2 — 2026-10-26
 
 Reconstructs `even-terminal-shared@0.8.1-shared.4` from the same pinned archive.

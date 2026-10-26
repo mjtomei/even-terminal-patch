@@ -5,10 +5,10 @@ attachment to an existing Codex daemon and an experimental connector to normally
 launched Claude sessions with native Remote Control. Your terminal and native
 phone connection keep their existing agent owner; the glasses use the Even app.
 
-Release **0.2.2** adds longer shell command detail for Pageborne. The existing
-Even Terminal glasses app keeps its short tool summaries, events and history.
-Pageborne receives the optional detail through its authenticated conversation
-endpoint.
+Release **0.2.3** adds durable library addition dates and file modification dates
+for Pageborne's recency sorting. Dates survive atomic file replacement, and old
+clients can ignore the optional metadata. Pairing, chats and the existing Even
+Terminal glasses app keep their behavior.
 
 This repository contains a patch applicator, numeric COPY recipes and added
 material. Upstream implementation files and reconstructed installations are not

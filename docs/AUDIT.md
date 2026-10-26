@@ -1,5 +1,17 @@
 # Patch reviews
 
+## 0.2.3 — 2026-10-26
+
+Reviewed optional library date metadata, stable addition dates across atomic
+replacement and migration of old originals with preserved modification dates.
+No session, event, permission or pairing interfaces changed.
+
+- Reconstructed installation: 83 files, version `0.8.1-shared.5`.
+- COPY bytes: 175164; INSERT bytes: 353594.
+- Manifest SHA-256: `e50b5d8cb6b319d6b8eaef0bea9b4ea82f56e821e75b8cb2398bb8a3f606567e`.
+- Exact referenced-payload match audit: passed at 24 bytes.
+- Validation: 82 bridge tests and 17 patch-tool tests passed.
+
 ## 0.2.2 — 2026-10-26
 
 Reviewed optional Pageborne shell-command detail, its combined activity budget,

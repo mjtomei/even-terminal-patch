@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, readFile, writeFile, symlink, link, mkdir } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, writeFile, symlink, link, mkdir, utimes, rename } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -26,10 +26,10 @@ async function upload(options, name, text) {
 test('library commits preserve versions, reject stale edits and deletions, and retry acknowledgements safely', async t => {
   const options = await fixture(t);
   const first = await upload(options, 'paper.md', '# First');
-  await libraryCommit({ file: first, expected: null }, options);
-  assert.deepEqual(await libraryCommit({ file: first, expected: null }, options), first);
+  const committed = await libraryCommit({ file: first, expected: null }, options);
+  assert.deepEqual(await libraryCommit({ file: first, expected: null }, options), committed);
   const before = await libraryManifest({}, options);
-  assert.deepEqual(before.files, [first]);
+  assert.deepEqual(before.files, [committed]);
   const second = await upload(options, 'paper.md', '# Second');
   await libraryCommit({ file: second, expected: first.sha256 }, options);
   const stale = await upload(options, 'paper.md', '# Stale phone edit');
@@ -101,4 +101,20 @@ test('Ask snapshots reuse archived originals and remain stable across desktop ed
     await assert.rejects(paperFilesStatus({ ...request, library: { ...library, id: 'another-library' } }, options), /library has changed/);
     await assert.rejects(paperFilesStatus({ ...request, library: { ...library, snapshot: false } }, options), /changed on the desktop/);
   }
+});
+
+
+test('library dates use addition time despite preserved old mtimes and survive atomic replacement', async t => {
+  const options = await fixture(t); await libraryManifest({}, options);
+  const file = path.join(options.libraryDir, 'book.txt'); await writeFile(file, 'First');
+  const old = new Date('2000-01-01'); await utimes(file, old, old);
+  const first = (await libraryManifest({}, options)).files[0];
+  assert.ok(first.addedAt > old.getTime()); assert.equal(first.modifiedAt, old.getTime());
+  await writeFile(file + '.new', 'Changed'); await rename(file + '.new', file);
+  const changed = (await libraryManifest({}, options)).files[0];
+  assert.equal(changed.addedAt, first.addedAt); assert.ok(changed.modifiedAt > first.modifiedAt);
+  assert.equal((await libraryManifest({ name: 'book.txt' }, options)).files[0].addedAt, first.addedAt);
+  await libraryRemove({ name: 'book.txt', expected: changed.sha256 }, options);
+  await libraryManifest({}, options); await writeFile(file, 'New addition');
+  assert.ok((await libraryManifest({}, options)).files[0].addedAt > first.addedAt);
 });

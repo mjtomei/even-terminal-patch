@@ -1,6 +1,6 @@
 {
   "name": "even-terminal-patch",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "description": "Numeric reconstruction recipes and original additions for Even Terminal 0.8.1"
 }
