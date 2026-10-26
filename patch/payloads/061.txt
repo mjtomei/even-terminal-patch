@@ -1,12 +1,12 @@
 {
   "name": "even-terminal-shared",
-  "version": "0.8.1-shared.2",
+  "version": "0.8.1-shared.3",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "even-terminal-shared",
-      "version": "0.8.1-shared.2",
+      "version": "0.8.1-shared.3",
     0.2.141",
         "@modelcontextprotocol/sdk": "1.30.0",
         "cors": "2.8.6",

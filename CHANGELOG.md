@@ -1,5 +1,16 @@
 # Changes
 
+## 0.2.1 — 2026-10-25
+
+Reconstructs `even-terminal-shared@0.8.1-shared.3` from the same pinned archive.
+
+- Retain tool summaries and provider-exposed thinking in shared Codex and
+  native Claude conversations, with stable identities and completion states.
+- Persist Codex activity through bridge restarts. Keep activity separate from
+  answers and the short history used as prompt context.
+- Add bounded, optional activity to Pageborne's authenticated conversation
+  endpoint. Existing clients and ordinary Even Terminal history remain compatible.
+
 ## 0.2.0 — 2026-10-24
 
 Reconstructs `even-terminal-shared@0.8.1-shared.2` from the same pinned

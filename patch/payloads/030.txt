@@ -1,4 +1,18 @@
-import { createHash{ mkdirSync, readFileSync, rename
+import { createHash{ mkdirSync, readFileSync, renameimport { summarizeCodexItem
+const toolTypes = new Set(['commandExecution', 'fileChange', 'mcpToolCall', 'dynamicToolCall',
+    'webSearch', 'imageView', 'imageGeneration', 'collabAgentToolCall']);
+function displayItem(item) {
+    if (item.type !== 'reasoning' && !toolTypes.has(item.type)) return item;
+    // Only the provider's display summaries are retained. Never expose raw
+    // reasoning content, encrypted payloads, tool input/output or signatures.
+    const summary = Array.isArray(item.summary) ? item.summary.map(part => typeof part === 'string' ? part : part?.text || '').join('\n') : '';
+    return { id: item.id, type: 'activity', kind: item.type === 'reasoning' ? 'thinking' : 'tool',
+        text: item.type === 'reasoning' ? (summary || 'Thinking…').slice(0, 800) .slice(0, 200),
+        state: /failed|error|declined/.test(item.status || '') ? 'error'
+            : item.complete || /completed|done/.test(item.status || '') ? 'complete' : 'pending',
+        complete: item.complete };
+}
+
 // The daemon's rollout-backed history can lag behind its live notifications.
 // Keep text by turn/item ID so a later history read cannot erase observed output.
 export class CodexTranscript {
@@ -19,8 +33,9 @@ export class CodexTranscript {
                 const uuidTime = /^[\da-f]{8}-[\da-f]{4}-7/i.test(incoming? parseInt(incoming.id.slice(0, 13).replace("-", ""), 16) / 1000 : undefined;
                 turn = { id: incoming.id, startedAt: Number.isFinite(incoming.startedAt) ? incoming.startedAt : uuidTime ?? Date.now() / 1000, items: [] };
 s.push(turnif (!Number.isFinite(turn.startedAt) && Number.isFinite(incoming.startedAt)) turn.startedAt = incoming.startedAt;
-            if (incoming.status && (live || !turn.status || turn.status === "inProgress")) turn.status = incomingitems = incoming.itemmatched = new Set();
-            const synthetic = id => /^item-\d+$/.test(id[index, item] of items.entries()!item.id || !["userMessage", "agentMessage"].includes(item.type))const text = 
+            if (incoming.status && (live || !turn.status || turn.status === "inProgress")) turn.status = incomingitems = (incoming.items || []).map(displayItem);
+            const matched = new Set();
+            const synthetic = id => /^item-\d+$/.test(id[index, item] of items.entries()!item.id || !["userMessage", "agentMessage", "activity"].includes(item.type))const text = 
                     ? (item.content || []).filter(c => c.type === "text").map(c => c.text || "").join("\n")
                     : item.text || "";
                 let saved = turn.items.find(i => i.id === item.id || i.aliases?.includes(item.id));
@@ -29,9 +44,8 @@ s.push(turnif (!Number.isFinite(turn.startedAt) && Number.isFinite(incoming.star
                 // text occurrences within this turn, preserving repeated input.
                 if (!saved) saved = turn.items.find(i => !matched.has(i) && i.type === item.type
                     && (synthetic(item.id) || synthetic(i.id)) && text && i.&& (text.startsWith(i.text) || i.text.startsWith(text))aved && saved.id !== item.id && !saved.aliases?.includes(item.idaved.aliases = [...(saved.aliases || []), synthetic(item.id) ? item.id : saved.id!synthetic(item.id)) saved.id = item.id!savedaved = { id: item.id, type: item.type, text }successor = items.slice(index + 1).find(i => turn.items.some(s => s.id === i.id))predecessor = items.slice(0, index).reverse().find(i => turn.items.some(s => s.id === i.id))position = successor ? turn.items.findIndex(i => i.id === successor    : predecessor ? turn.items.findIndex(i => i.id === predecessor.id) + 1 : turn.items.length;.items.splice(position, 0, saved);
-                } else if (live || (!saved.complete && text.startsWith(saved.text))) saved.text = text;
-                matched.add(saveitem.complete) saved.complete = tr}
-        this.turns.sort((a, b) => a.startedAt - b.startedAt);
+                } else if (live || (!saved.complete && text.startsWith(saved.text)!(item.kind === 'thinking' && text === 'Thinking…' && saved.text)) saved.text = texmatched.add(saveitem.type === 'activity' && (live || !saved.state || saved.state === 'pending'aved.kind = item.kind; saved.state = item.stateitem.complete) saved.complete = trconst recentActivity = new Set(turn.items.filter(i => i.type === 'activity').slice(-24));
+            turn.items = turn.items.filter(i => i.type !== 'activity' || recentActivity.has(iturns.sort((a, b) => a.startedAt - b.startedAt);
         this.turns = this.turns.slice(-80);
         this.scheduleSave();
     }
@@ -40,6 +54,10 @@ s.push(turnif (!Number.isFinite(turn.startedAt) && Number.isFinite(incoming.star
         if (!id) return;{
             this.merge([{ ...p.turn, items: (p.turn.items || []).map(i => ({ ...i, complete: })) }], true);
         } else || this.merge([{ id, items: [{ ...p.item, complete:  }] }], true);
+        } else if (method === 'item/reasoning/summaryTextDelta'this.turns.find(t => t.id === id)?.items.find(i => i.id === p.itemId);
+            const old = item?.text === 'Thinking…' ? '' : item?.text || '';
+            this.merge([{ id, items: [{ id: p.itemId, type: 'activity', kind: 'thinking', state: 'pending',
+                text: (old + (p.delta || '')).slice(0, 800) }] }], true);
         } elseitems = this.turns.find(t => t.id === id)?.items || [];
             let item = items.find(i => i.id === p.itemId || i.aliases?.includes(p.itemId));
             if (!item) {
@@ -53,7 +71,7 @@ s.push(turnif (!Number.isFinite(turn.startedAt) && Number.isFinite(incoming.star
     snapshotturns.map(t => ({ ...t, items: t.items.map(i => i.type === "userMessage"
             ? { ...i, conteni.text }] } : { ...i }) }));
     }
-    history(limit = 10this.turns.flatMap(turnrows =turn.const text = item.text!text)const role =  ? "user" : "assistant";
+    history(limit = 10this.turns.flatMap(turnrows =turn.if (item.type === 'activity')const text = item.text!text)const role =  ? "user" : "assistant";
                 // Commentary and the final answer belong to the same reply.
                 // Preserve every user input, including steering and repeats.
                 if (role === "assistant" && rows.at(-1)?.role === "assistant") rows.at(-1).text += "\n\n" + text;

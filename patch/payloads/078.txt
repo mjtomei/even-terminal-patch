@@ -1,20 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { requestDetails, errorDetails } from '../dist/request-diagnostics.js';
+import { createProviderRouting } from '../dist/provider-routing.js';
 
-test('request diagnostics show provider/session routing without query tokens or bodies', () => {
-    const id = '00000000-0000-4000-8000-000000000001';
-    const details = requestDetails({ originalUrl: `/api/events?sessionId=${id}&token=secret`,
-        query: 'claude', token: 'secret' }, body: { text: 'private conversation' } });
-    assert.deepEqual(details, { provider: 'claude', sessionId: id });
-    assert.equal(requestDetails({ path: '/api/events', query: { sessionId: id } }).provider, '(omitted)');
-    assert.equal(requestDetails({ originalUrl: `/api/sessions/${id}/history?token=secret` }).sessionId, id);
-    assert.deepEqual(requestDetails({ path: '/api/events', query: { provider: 'secret', sessionId: 'private text' } }),
-        { provider: '[unsupported]', sessionId: '[invalid]' });
+test('session ownership selects the backend while explicit providers and new-session defaults remain authoritative', () => {
+    const registry = { claude: {}, codex: {} };
+    const routing = createProviderRouting(registry, () => 'codex');
+    routing.remember('claude-id', 'claude');
+    routing.remember('codex-id', 'codex');
+    assert.equal(routing.resolve(undefined, 'claude-id'), registry.claude);
+    assert.equal(routing.resolve(undefined, 'codex-id'), registry.codex);
+    assert.equal(routing.resolve('codex', 'claude-id'), registry.codex);
+    assert.equal(routing.resolve('claude', 'codex-id'), registry.claude);
+    assert.equal(routing.resolve(), registry.codex);
+    assert.equal(routing.resolve(undefined, 'unknown'), registry.codex);
+    assert.throws(() => routing.resolve('invalid', 'claude-id'), error => error.statusCode === 400);
+    const claudeDefault = createProviderRouting(registry, () => 'claude');
+    claudeDefault.remember('codex-id', 'codex');
+    assert.equal(claudeDefault.resolve(undefined, 'codex-id'), registry.codex);
+    assert.equal(claudeDefault.resolve(), registry.claude);
 });
 
-test('error diagnostics redact the pairing credential and retain the RPC error code', () => {
-    const details = errorDetails({ message: 'Request using secret-token failed: secret-token', rpcCode: -32603 }, 'secret-token');
-    assert.equal(details.message, 'Request using [redacted] failed: [redacted]');
-    assert.equal(details.rpcCode, -32603);
+test('reconnection can recognize local sessions before listing without invoking backend operations', () => {
+    const registry = { claude: { hasSession: id => id === 'saved', attach: () => assert.fail('Resolver attached') }, codex: {} };
+    const routing = createProviderRouting(registry, () => 'codex');
+    assert.equal(routing.resolve(undefined, 'saved'), registry.claude);
+    assert.equal(routing.resolve('codex', 'saved'), registry.codex);
+});
+
+test('ambiguous IDs require an explicit provider instead of guessing', () => {
+    const registry = { claude: {}, codex: {} };
+    const routing = createProviderRouting(registry, () => 'codex');
+    routing.remember('collision', 'claude');
+    routing.remember('collision', 'codex');
+    assert.throws(() => routing.resolve(undefined, 'collision'), error => error.statusCode === 409);
+    assert.equal(routing.resolve('claude', 'collision'), registry.claude);
 });

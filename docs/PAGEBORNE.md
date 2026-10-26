@@ -40,8 +40,15 @@ sessions can receive a readable title; a failed rename never repeats the prompt.
 ## Shared conversations and links
 
 The conversation endpoint returns up to 40 recent question/reply pairs within a
-100,000-character budget. It omits tools and removes recognized Pageborne prompt
-wrappers. It does not send a prompt. This endpoint serves Pageborne; the ordinary
+100,000-character budget. It removes recognized Pageborne prompt wrappers and
+includes a separate, optional `activities` list for each pair. Activity retains
+up to 24 recent tool summaries and provider-exposed thinking entries within
+4,000 characters per pair (800 per thinking entry, 200 per tool/status entry).
+Raw tool results, reasoning content, encrypted/redacted blocks and signatures
+are excluded. Codex uses its display summaries; native Claude uses the thinking
+blocks supplied for display. Availability of older activity depends on what
+the provider returns. Activity does not enter the answer or prompt history.
+It does not send a prompt. This endpoint serves Pageborne; the ordinary
 Even Terminal app still receives its existing ten-entry history snapshot.
 
 Document/model session links and question locations are stored under
@@ -86,7 +93,7 @@ Capabilities are advertised under `pageborne` in `/api/info`.
 | `POST /pageborne/library/read`, `/remove` | Read an exact version or conditionally archive/delete it |
 | `POST /pageborne/files/status`, `/chunk`, `/commit` | Immutable original/reflow/index attachments |
 | `POST /pageborne/workspace` | Idempotent paper/session directory creation |
-| `GET /pageborne/conversation` | Text history for `provider` and `sessionId` |
+| `GET /pageborne/conversation` | Text history and optional activity for `provider` and `sessionId` |
 | `GET /pageborne/reader-state` | Read instance/library-scoped session links |
 | `POST /pageborne/reader-state` | Merge document/model links and question locations |
 | `POST /pageborne/session?provider=claude` | Prepare a native owner when explicitly enabled |

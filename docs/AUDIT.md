@@ -1,5 +1,17 @@
 # Patch reviews
 
+## 0.2.1 — 2026-10-25
+
+Reviewed the Codex and native Claude transcript changes, bounded activity
+serialization, and synthetic lifecycle/restart tests. The runtime changes retain
+only display summaries, keep ordinary prompt history unchanged, and preserve
+existing pairing, sessions and library identities.
+
+- Reconstructed installation: 82 files, version `0.8.1-shared.3`.
+- COPY bytes: 174917; INSERT bytes: 341604.
+- Manifest SHA-256: `202aa7e665f8fe3affb15ced4f096609d9df95c87d75a4a3301b52d1f2ca4a93`.
+- Exact referenced-payload match audit: passed at 24 bytes.
+
 ## 0.2.0 — 2026-10-24
 
 This update retains the pinned 0.8.1 upstream archive and the COPY/INSERT format.

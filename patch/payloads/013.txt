@@ -20,7 +20,9 @@ export class RemoteTranscript {
         const send = message => { if (notify) this.emit(message); };
         if (['user', 'assistant'].includes(event.typeext = textContent(event.message?.content);
             if (text.trim() && !event.isMeta && !event.isSyntheticntries.set(key, { role: event.typeevent.type === 'user') this.lastUser = keyentries.size > 1000) this.entries.delete(this.entries.keys().next().value);
-                send(event.type === 'user' ? { type: 'user_prompt', text } : { type: 'text_delta', text: `\n\n${text}`if (event.type === 'assistant' && Array.isArray(event.message?for (const block of event.message.content) if (block?.type === 'tool_use'nd({ type: 'tool_start', name: block.name, toolId: block.id,|| {}) else if (event.type === 'control_request' && event.request?.subtype === 'can_use_tool') {event.request_id, event.request);
+                send(event.type === 'user' ? { type: 'user_prompt', text } : { type: 'text_delta', text: `\n\n${text}`if (event.type === 'assistant' && Array.isArray(event.message?for (const [index, block] of event.message.content.entries(block?.type === 'tool_use'const summary|| {this.entries.set(`tool:${block.id || key + ':' + index}`, { role: 'activity', kind: 'tool', text: summary.slice(0, 200), state: 'pending'send({ type: 'tool_start', name: block.name, toolId: block.id, summary} else if (block?.type === 'thinking'// This is the displayable thinking block supplied by// Claude. Redacted blocks/signatures are not retained.entries.set(`thinking:${key}:${index}`, { role: 'activity', kind: 'thinking'text: typeof block.thinking === 'string' ? block.thinking.slice(0, 800) || 'Thinking…' : 'Thinking…', state: 'complete'}
+    'user' && Array.isArray(event.message?for (const block of event.message.content) if (block?.type === 'tool_result'activity = this.entries.get(`tool:${block.tool_use_idif (activity) activity.state = block.is_error ? 'error' : 'complete'while (this.entries.size > 1000) this.entries.delete(this.entries.keys().next().value);
+        } else if (event.type === 'control_request' && event.request?.subtype === 'can_use_tool') {event.request_id, event.request);
             send(this.permissionMessage(event.request_id, event.request));
         } else if (['control_response', 'control_cancel_request'].includes(event.type)Id = event.response?.request_id || event.request_id; = this.pending.getif (request.delete    send({ type: 'permission_result', toolUseId: requestId, toolName: request.tool_name, decision: 'resolved', resolvedExternally: true, summary: 'Request answered in Claude' else if (event.type === 'result') {
             if (this.lastUser) this.outcomes.set(this.lastUser, event.is_error ? 'failed' : 'completed');
@@ -31,7 +33,7 @@ export class RemoteTranscript {
         return { type: 'permission_request', toolUseId: requestId, toolName: request.tool_nrequest.tool_name, request.input || {}[{ text: 'Yes', key: 'allow' }, { text: 'No', key: 'deny' }] };
     }
     history(limit = 10) {
-        const groupedentry of this.entrieif (entry.role === 'assistant' && grouped.at(-1)?.role === 'assistant') grouped.at(-1).text += `\n\n${entry.text}`;
+        const groupedentry of this.entrieif (entry.role === 'activity')entry.role === 'assistant' && grouped.at(-1)?.role === 'assistant') grouped.at(-1).text += `\n\n${entry.text}`;
             else grouped.push({ ...entrygrouped.slice(-Math.max(1, Math.min(Number(limit) || 10, 10)));
     }
     snapshot(state = 'idle') {
@@ -39,6 +41,7 @@ export class RemoteTranscript {
             if (entry.role === 'user' || !turns.length) turns.push({ id: `claude:${key}`, status: this.outcomes.get(key) || 'completed', items: [] });
             turns.at(-1).items.push(entry.role === 'user'
                 ? { id: key, type: 'userMessage', content: [{ type: 'text', text: entry.text }] }
+                : entry.role === 'activity' ? { id: key, type: 'activity', kind: entry.kind, text: entry.text, state: entry.state }
                 : { id: key, type: 'agentMessage', text: entryconst last = turns.at(-1);
         if (last && !this.outcomes.has(this.lastUser) && (state !== 'idle' || last.items.at(-1).type === 'userMessage')) last.status = 'inProgress';
         return turns.slice(-40);

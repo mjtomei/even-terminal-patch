@@ -1,11 +1,11 @@
 {
   "baseline_version": "0.8.1",
-  "output_files": 81,
-  "copy_bytes": 174182,
-  "insert_bytes": 333099,
+  "output_files": 82,
+  "copy_bytes": 174917,
+  "insert_bytes": 341604,
   "operation_counts": {
-    "insert": 1365,
-    "copy": 1495
+    "insert": 1391,
+    "copy": 1521
   },
   "literal_exact_match_check_bytes": 24,
   "literal_exact_match_check": "passed",
@@ -19,7 +19,7 @@
     {
       "path": "CHANGELOG.md",
       "copy_bytes": 29,
-      "insert_bytes": 1987
+      "insert_bytes": 2538
     },
     {
       "path": "NOTICE.md",
@@ -34,7 +34,7 @@
     {
       "path": "README.md",
       "copy_bytes": 29,
-      "insert_bytes": 4166
+      "insert_bytes": 4352
     },
     {
       "path": "UPSTREAM-README.md",
@@ -78,8 +78,8 @@
     },
     {
       "path": "dist/claude/remote/transcript.js",
-      "copy_bytes": 874,
-      "insert_bytes": 4449
+      "copy_bytes": 1288,
+      "insert_bytes": 5459
     },
     {
       "path": "dist/claude/session.js",
@@ -163,8 +163,8 @@
     },
     {
       "path": "dist/codex/transcript.js",
-      "copy_bytes": 1729,
-      "insert_bytes": 5570
+      "copy_bytes": 1973,
+      "insert_bytes": 7399
     },
     {
       "path": "dist/debug.js",
@@ -233,8 +233,8 @@
     },
     {
       "path": "dist/routes/pageborne-conversation.js",
-      "copy_bytes": 237,
-      "insert_bytes": 3386
+      "copy_bytes": 287,
+      "insert_bytes": 4188
     },
     {
       "path": "dist/routes/pageborne-files.js",
@@ -365,6 +365,11 @@
       "path": "test/claude-shared.test.js",
       "copy_bytes": 425,
       "insert_bytes": 18969
+    },
+    {
+      "path": "test/conversation-activity.test.js",
+      "copy_bytes": 27,
+      "insert_bytes": 4127
     },
     {
       "path": "test/pageborne-conversation.test.js",

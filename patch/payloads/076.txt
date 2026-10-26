@@ -1,22 +1,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, readFile, readdir, symlink, mkdir } from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
-import { paperWorkspace, expandPaperBase } from '../dist/routes/pageborne-workspaces.js';
+import { paperSessionTitle, sessionTitleCapabilities, nameNewPaperSession } from '../dist/routes/pageborne-session-titles.js';
 
-test('paper folders use a hidden home default, remain stable across titles, and isolate identities and custom bases', async t => {
-  const home = await mkdtemp(path.join(os.tmpdir(), 'pageborne-workspaces-')); t.after(() => rm(home, { recursive: true, force: true }));
-  const first = await paperWorkspace({ workspaceId: 'session-one', paperId: 'one', title: 'Paper' }, { home });
-  assert.equal(first.baseDir, path.join(home, '.pageborne/papers'));
-  const same = await paperWorkspace({ workspaceId: 'session-one', paperId: 'one', title: 'Renamed title' }, { home }); assert.equal(same.cwd, first.cwd);
-  const anotherSession = await paperWorkspace({ paperId: 'one', workspaceId: 'session-two' }, { home }); assert.notEqual(anotherSession.cwd, first.cwd); assert.equal(path.dirname(anotherSession.cwd), path.dirname(first.cwd));
-  const other = await paperWorkspace({ workspaceId: 'session-one', paperId: 'two', title: 'Paper' }, { home }); assert.notEqual(other.cwd, first.cwd);
-  const custom = await paperWorkspace({ workspaceId: 'session-one', paperId: 'one', baseDir: '~/research' }, { home }); assert.equal(custom.baseDir, path.join(home, 'research'));
-  assert.equal(JSON.parse(await readFile(path.join(first.cwd, 'paper.json'))).title, 'Paper');
-  const hostile = await paperWorkspace({ workspaceId: 'session-one', paperId: '../../elsewhere', title: '../../secret' }, { home }); assert.equal(path.dirname(path.dirname(hostile.cwd)), first.baseDir);
-  assert.throws(() => expandPaperBase('relative/path', home)); assert.throws(() => expandPaperBase('~somebody/papers', home));
-  await rm(first.cwd, { recursive: true }); const elsewhere = path.join(home, 'elsewhere'); await mkdir(elsewhere); await symlink(elsewhere, first.cwd);
-  await assert.rejects(paperWorkspace({ workspaceId: 'session-one', paperId: 'one' }, { home }), /symbolic link/); assert.deepEqual(await readdir(elsewhere), []);
+test('paper titles are readable bounded metadata, including Unicode and missing titles', () => {
+  assert.equal(paperSessionTitle('  Équations\n &\tfigures\0 '), 'Équations & figures');
+  assert.equal(paperSessionTitle(undefined), 'Untitled paper');
+  assert.equal(paperSessionTitle(' \n '), 'Untitled paper');
+  assert.equal(paperSessionTitle('📖'.repeat(301)), '📖'.repeat(300));
 });
 
+test('the optional extension names only newly created sessions supported by their provider', async () => {
+  const calls = [], result = { sessionId: 'new-id', provider: 'codex' };
+  const provider = { setSessionTitle: async (...args) => calls.push(args) };
+  assert.deepEqual(sessionTitleCapabilities(provider), { sessionTitles: 1 });
+  assert.deepEqual(sessionTitleCapabilities({}), {});
+  assert.deepEqual(await nameNewPaperSession(provider, result, { sessionTitle: 'Giving\nReasons' }), { ...result, sessionTitle: 'Giving Reasons' });
+  assert.deepEqual(calls, [['new-id', 'Giving Reasons']]);
+  for (const options of [{}, { sessionTitle: '  ' }, { sessionTitle: 4 }, { sessionId: 'linked', sessionTitle: 'Replacement' }]) {
+    assert.equal(await nameNewPaperSession(provider, result, options), result);
+  }
+  assert.equal(calls.length, 1);
+  assert.equal(await nameNewPaperSession({}, result, { sessionTitle: 'Paper' }), result);
+});
+
+test('unsupported or stalled rename still returns the accepted session, without resending a prompt', async () => {
+  const result = { sessionId: 'already-created', provider: 'codex' };
+  for (const setSessionTitle of [async () => { throw new Error('Unsupported'); }, () => { throw new Error('Synchronous'); }, () => new Promise(() => {})]) {
+    const provider = { setSessionTitle, prompt: () => assert.fail('must not resend') };
+    assert.equal(await nameNewPaperSession(provider, result, { sessionTitle: 'Paper' }, 5), result);
+  }
+});

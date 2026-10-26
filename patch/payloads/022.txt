@@ -29,7 +29,7 @@ try {
                 ws.once("close", Codex connection closed before opening")));
     this.handleMessage(data, ws));
     error => this.disconnected(ws, error));
-    this.disconnected(ws)this.serverInfo = name: "even_terminal_shared", version: "0.8.1-shared.2" experimentalApi: truesend({} catch (error) {
+    this.disconnected(ws)this.serverInfo = name: "even_terminal_shared", version: "0.8.1-shared.3" experimentalApi: truesend({} catch (error) {
             this.disconnected(ws, error);
             ws.terminate();Cannot connect to the existing Codex daemon: ${error.message}`, { cause: errordisconnected(ws, error = new Error("Codex connection lost; reconnecting")!== ws) = null;erro.clear();
 orws = this.ws;
