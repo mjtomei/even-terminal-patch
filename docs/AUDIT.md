@@ -1,5 +1,20 @@
 # Patch reviews
 
+## 0.2.2 — 2026-10-26
+
+Reviewed optional Pageborne shell-command detail, its combined activity budget,
+completion/restart retention and compatibility tests. Existing summary functions,
+live event modules and permission handling are unchanged. Synthetic tests check
+short event payloads and ordinary history alongside the longer Pageborne detail.
+
+- Reconstructed installation: 83 files, version `0.8.1-shared.4`.
+- COPY bytes: 175139; INSERT bytes: 350422.
+- Manifest SHA-256: `047434e5fbbaf68bfc8384fddec282bdb98f91c6aec64072b459e5d52234dde6`.
+- Exact referenced-payload match audit: passed at 24 bytes.
+- Validation: 81 bridge tests and 17 patch-tool tests passed. A timing-sensitive
+  permission test in an unchanged shared-channel module failed during a parallel
+  run; the full suite passed with test files run serially.
+
 ## 0.2.1 — 2026-10-25
 
 Reviewed the Codex and native Claude transcript changes, bounded activity

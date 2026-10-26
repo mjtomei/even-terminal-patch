@@ -44,6 +44,16 @@ The conversation endpoint returns up to 40 recent question/reply pairs within a
 includes a separate, optional `activities` list for each pair. Activity retains
 up to 24 recent tool summaries and provider-exposed thinking entries within
 4,000 characters per pair (800 per thinking entry, 200 per tool/status entry).
+Starting with patch 0.2.2, tool entries may also contain `detail`: normalized
+shell command text (up to 1,000 characters, including its Shell/Bash label),
+counted within the same 4,000-character activity budget. The existing `text`
+summary stays unchanged. Detail is only generated for Codex command execution
+and native Claude Bash tools, and is exposed only in Pageborne conversations.
+Legacy events, permission summaries and ordinary history are unchanged. Older
+Pageborne clients ignore this optional field; newer clients fall back to `text`
+when detail is unavailable. Historical commands can be recovered only when the
+original provider history still supplies them.
+
 Raw tool results, reasoning content, encrypted/redacted blocks and signatures
 are excluded. Codex uses its display summaries; native Claude uses the thinking
 blocks supplied for display. Availability of older activity depends on what

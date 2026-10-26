@@ -1,87 +1,63 @@
-// Feasibility probe for native Remote Control. Does not register a worker,
-// resume a local process, or start an SDK query. Reads only unless --send is
-// explicitly supplied for a dedicated test session selected by exact name/ID.writeFileSync } from 'node:fs''node:os';
-import { join, dirname, resolve } from 'node:path''node:url';
-import { randomUUID } from 'node:crypto';
-
-const aconst label = args.find(arg => !arg.startsWith('--'));
-if (!label || args.some(arg => arg.startsWith('--') && arg !== '--send')) {
-    throw new Error('Usage: node scripts/probe-claude-remote.mjs <exact-session-name-or-cloud-ID> [--send]');
-}
-const root = resolve(, '..');
-const configDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
-const report = { time mode: args.includes('--send') ? 'test-prompt' : 'read-only', requests: [] };
-let lastToken = '';
-const clean = value => (lastToken ? String(value).replaceAll(lastToken, '[redacted]') : String(value)).slice(0, 350);
-
-async function request(path, body) {
-readFileSync(join(configDir, '.credentials.json'), 'utf8')).claudeAiOauth;
-    if (!auth?.accessToken) throw new Error('No existing Claude login credential');
-    if (auth.expiresAt && Date.now() >= auth.expiresAt) throw new Error('Claude login credential has expired; let the native CLI refresh it before retrying');
-    lastToken = auth.accessToken;
-    const result = { method: body ? 'POST' : 'GET', path };
-    report.requests.push(result);
-`https://api.anthropic.com${path}`, {
-        method: result.method, body: body ? JSON.stringify(body) : undefined,
-        headers: { Authorization: `Bearer ${lastToken}`, 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01' },
-        signal: AbortSignal.timeout(15000), redirect: 'error',
-    });
-    result.httpStatus = response.status;
-    const data = await response.json();
-    if (!response.ok) throw new Error(`Claude Remote Control: ${clean(data.error?.message || 'Request rejected')}`);
-    return data;
-}
-
-async function events(id, cursor) {
-    const querysort_order: 'asc', });
-    return request(`/v1/code/sessions/${encodeURIComponent(id)}/events?${query}`);
-}
-
+// Explicit, opt-in check: sends a small prompt in a temporary Codex conversation.
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+'node:crypto''../dist/codex/app-server.js';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const until = async (fn, timeout = 60000) => {
+    const end = Date.now() + timeout;
+    while (Date.now() < end) { if (fn()) return; await sleep(50); }
+    throw new Error('Timed out waiting for the live Codex response');
+};
+const owner);
+const state = await mkdtemp(join(tmpdir(), 'even-live-smoke-'));
+const token = randomBytes(24).toString('hex');
+let child, thread, abort;
 try {
-    const listing = await request('/v1/code/sessions?limit=100');
-    const matches = listing.data.filter(s => s.id === label || s.title === label);
-    if (matches.length !== 1) throw new Error(`Expected one exact session match in the first page; found ${matches.length}. Supply the cloud session ID if necessary.`);
-    const selected = matches[0];
-    const raw = await request(`/v1/code/sessions/${encodeURIComponent(selected.id)}`);
-    const session = raw.response_shape ?? raw.session;
-    if (session?.id !== selected.id) throw new Error('Unexpected session metadata response');
-    report.session = { id: session.id, title: session.title,connectionStatus: session.connection_status, workerStatus: session.worker_status, environmentKind: session.environment_kind };
-    if (session.environment_kind !== 'bridge') throw new Error('Selected session is not native Remote Control');
-
-    let cursor, pages = 0, eventCount = 0;
-    const types = new Set();
-    while (trueevents(session.id, cursor);
-        for (const eventeventCount++;
-            types.add(event.payload?.type);
-            if (event.sequence_num !== undefined) cursor = String(event.sequence_numpage.next_cursor) break;
-        if (++pages >= 100) throw new Error('Stopped at the history page limit before sending any test prompt');
-        if (String(page.next_cursor) === c) cursor = String(page.next_cursor);
-        else throw new Error('History pagination did not advance');
-    }
-    report.history = { eventCount, eventTypes: [...types], cursor };
-    if (args.includes('--send')) {
-        if (session.status !== 'active' || session.connection_status !== 'connected' || session.worker_status !== 'idle''Test prompt requires an active, connected, idle test session'uuid = randomUUID();
-        const marker = `even-native-test-${uuid.slice(0, 8)}`;
-        report.test = { uuid, marker };
-        // Exactly one submission. An uncertain outcome must be inspected, never
-        // automatically retried; it could already have reached the local CLI.
-        const sent = await request(`/v1/code/sessions/${encodeURIComponent(session.id)}/events`, { events: [{ payload: {
-            uuid, session_id: session.id, type: 'user', parent_tool_use_id: null,
-            message: { role: 'user', content: `Connection test ${marker}. Reply with exactly: ${marker} received. Do not use tools or change any files.` },
-        } }] });
-        report.test.accepted = true;
-        report.test.duplicate = sent.results?.[0]?.duplicate === true;
-      20000;
-      events(session.id, cursorevent    if (event.sequence_num !== undefined) cursor = String(event.sequence_numpayload = event.payload;
-                if (payload?.uuid === uuid) report.test.promptObser    if (payload?.type === 'assistant'content = payloadontent === 'string' ? content : ? content.filter(b => b.type === 'text').map(b => b.text).join('') : ''.includes(`${marker} received`)) report.test.replyObserif (report.test.promptObserved && report.test.replyObserved) break;
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-    }
-} catch (error) {
-    report.error = clean(error.message);
-    process.exitCode = 1;
+    thread = await owner.threadStart({ cwd: process.cwd(), sandbox: 'read-only', approvalPolicy: 'never' });
+    const id = thread.id;
+    await owner.call('thread/name/set', { threadId: id, name: 'Even Terminal connectivity test' });
+    child = spawn(process.execPath, ['bin/cli.js', '--host', '127.0.0.1', '--port', '0', '--no-qr'], {
+        env: { ...process.env, EVEN_TERMINAL_STATE_DIR: state, BRIDGE_TOKEN: token }, stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let logs = '';
+    child.stdout.on('data', b => logs += b); child.stderr.on('data', b => logs += b);
+    await until(() => logs.includes('[server] listening'), 10000);
+    const base = logs.match(/\[server\] listening (http:\/\/[^\s]+)/)[1];
+    const headers = { Authorization: `Bearer ${token}` };
+    abortstream = await fetch(`${base}/api/events?provider=codex&sessionId=${id}`, { headers, signal: abort.signal });
+    assert.equal(stream.status, 200, await (stream.status === 200 ? '' : stream.text()));
+    const reader = stream.body.getReader();
+    const events = [];
+    const readinglet buffered = ''while (true{ done, value } = await reader.read(); if (done)buffered += new TextDecoder().decode(valueframes = buffered.split('\n\n'); buffered = frames.pop(frame of framesdata = frame.split('\n').find(l => l.startsWith('data: ')data) events.push(JSON.parse(data.slice(6)) catch (e) { if (!abort.signal.aborted) throw e; }
+    })();
+    const input = 'Connectivity test for the Even glasses bridge. Reply with exactly EVEN_SHARED_OK. Do not use tools.';
+`${base}/api/prompt`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'codex', sessionId: id, text: input }) });
+    assert.equal(response.status, 202, JSON.stringify(await response.json()));
+    await until(() => events.some(e => e.type === 'result'));
+    const result = events.find(e => e.type === 'result');
+    assert.equal(result.success, true, result.text);
+    assert.match(result.text, /EVEN_SHARED_OK/);
+    assert.ok(events.some(e => e.type === 'text_delta' && e.text));
+    // A second independent client sees the exact conversation updated by HTTP.
+owner.threadTurnsList({ threadId: id, limit: 2, itemsView: 'full' });
+    const items = history.data.flatMap(t => t.items);
+    assert.ok(items.some(i => i.type === 'userMessage' && i.content.some(c => c.text === input)));
+    assert.ok(items.some(i => i.type === 'agentMessage' && i.text.includes('EVEN_SHARED_OK')));
+    console.log(JSON.stringify({ passed: true, sharedThreadId: id, inputViaHttp: true, outputViaSse: true, verifiedBySecondClient: true, eventTypes: [...new Set(events.map(e => e.type))] }));
+    abort.abort(); await reading;
 } finally {
-    const path = join(root, '.state', `claude-remote-probe-${randomUUID()}.json`report, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
-    console.log(`Probe report: ${path}`);
-    console.log(JSON.stringify(report, null, 2));
+    abort?.abort();
+    if (child) { const exited = once(child, 'exit'); child.kill('SIGTERM'); await Promise.race([exited, sleep(4000)]); if (child.exitCode == null) child.kill('SIGKILL'); }
+    if (thread) {
+wait owner.threadRead(thread.id).catch(() => null);
+        if (current?.status.type !== 'active') await owner.call('thread/archive', { threadId: thread.id }).catch(() => {});
+        await owner.id).catch(() => {});
+    }
+    await owner.close();
+    await rm(state, { recursive: true, force: true });
 }

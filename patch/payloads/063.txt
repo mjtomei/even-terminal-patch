@@ -1,87 +1,21 @@
-// Read-only bridge probe. Run from the desktop when the agent's sandbox cannot
-// reach localhost. Records response metadata, never tokens or conversation text.writeFileSync, mkdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path''node:url';
-import { randomUUID } from 'node:crypto';
-
-const root = resolve(, '..');
-const stateDirSTATE_DIR || join(root, '.state');
-const pairinjoin(stateDir, 'pairing.json'), 'utf8'));
-if (!Number.isInteger(pairing.port) || pairing.port < 1 || pairing.port > 65535) throw new Error('Invalid bridge port');
-const base = `http://127.0.0.1:${pairing.port}`;
-const report = { time base, checks: [] };
-const headers = { Authorization: `Bearer ${pairing.token}` };
-const redact = value => String(value || '').replaceAll(pairing.token, '[redacted]').slice(0, 300);
-const label = process.argv[2] || 'library';
-
-async function request(name, path) {
-    const startcheck = { name };
-    report.checks.push(checkres = await fetch(`${base}${path}`, { headers, redirect: 'error', signal: AbortSignal.timeout(15000) });
-        check.httpStatus = res.status;
-        check.contentType = res.headers.get('content-type');
-        const text = await res.text();
-        check.responseBytes = Buffer.byteLength(text);
-        let body;
-        try { body = JSON.parse(text); }
-        catch { check.error = 'Response was not JSON'; return; }
-        if (body.error) check.error = redact(typeof body.error === 'string' ? body.error : body.error.message);
-        if (typeof body.state === 'string') check.state = body.state;
-        if (typeof body.provider === 'string') check.provider = body.provider;
-        return body;
-    } catch (error) {
-        check.error = redact(error.message);
-        if (error.cause?.code) check.cause = error.cause.code;
-    } finally { check.elapsedMs = Date.now() - start; }
-}
-
-async function streamheck = { name: 'claude-events', events: [], endedByServer: false };
-    report.checks.push(check);3500);
-    let readersessionId, provider: 'claude' });
-        const res = await fetch(`${base}/api/events?${params}`, { headers, redirect: 'error' });
-        check.httpStatus = res.status;
-        check.contentType = res.headers.get('content-type');
-        if (!res.ok) {
-            const body = await res.json().catch(() => null);
-            check.error = redact(body?.error || 'Stream request failed'reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        while (check.events.length < 20done, value } = await reader.read();
-            if (done) { check.endedByServer = true; break; }
-            buffer += decoder.decode(value, { stream: truframes = buffer.split('\n\n'); buffer = frames.pop(frame of frames) {frame.split('\n'!line.startsWith('data: '))    const event = JSON.parse(line.slice(6)check.events.push({ type: event.type, state: event.state, provider: event.providertextChars: typeof event.text === 'string' ? event.text.length                error: event.type === 'error' ? redact(event.message) : undefined} catch { check.invalidJson = true;}
-        }
-    } catch (error) {
-        if (controller.signal.aborted) check.observationWindowCompleted = true;
-        else check.error = redact(error.message);
-    }    controller.abort();
-        await reader?.cancel().catch(() => {});
-    }
-}
-
-try {
-    const info = await request('default-provider', '/api/info');
-    if (info) report.defaultProvider = infoult = await request('claude-sessions', '/api/sessions?provider=claude&limit=100');
-    const sessions = result?.sessions || [];
-    report.listedSessions = sessions.length;
-    const matches = sessions.filter(session => session.id === label || String(session.title).toLowerCase() === label.toLowerCase());
-    if (matches.length !== 1) throw new Error(`Expected one session matching the supplied name/ID; found ${matches.length}. Use the exact session UUID if necessary.`);
-    const session = matches[0];
-    report.sessionId = session.id;
-    report.listingProvider = session.providerprovider: 'claude', sessionId: session.id });
-    await request('claude-status', `/api/status?${params}`);
-request('claude-history', `/api/sessions/${encodeURIComponent(session.id)}/history?provider=claude`);
-    if (history?.history) report.history = history.history.map(item => ({ role: item.role,
-        chars: typeof item.text === 'string' ? item.text.length : null,
-        bytes: typeof item.text === 'string' ? Buffer.byteLength(item.text) : null,
-        internalTaskReport: typeof item.text === 'string' && /^\s*<task-notification>/.test(item.text) }));
-    await stream(session.id);
-    // These reads show whether omission of the provider would select a
-    // different backend. No prompt, resume-through-SDK, or approval is sent.
-    await request('status-without-provider', `/api/status?${new URLSearchParams({ sessionId: session.id })}`);
-    await request('history-without-provider', `/api/sessions/${encodeURIComponent(session.id)}/history`);
-} catch (error) {
-    report.error = redact(error.message);
-    process.exitCode = 1;
-} finally {
-    mkdirSync(stateDir, { recursive: true, mode: 0o700 })stateDir, `claude-diagnostic-${randomUUID()}.json`report, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
-    console.log(`Diagnostic saved: ${path}`);
-    console.log(JSON.stringify(report, null, 2));
+{
+  "name": "even-terminal-shared",
+  "version": "0.8.1-shared.4Shared Codex sessions and experimental native Claude Remote Control for Even Terminal",
+    "dist/",
+    "scripts/",
+    "test/",
+    "even-terminal",
+    "even-terminal-ngrok",
+    "README.md",
+    "UPSTREAM-README.md",
+    "PROVENANCE.md",
+    "NOTICE.mdnode bin/cli.js",
+    "test": "node --test test/*.test.js220.2.141",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "cors": "0.12.0",
+    "ws": "8.21.3",
+    "yargs": "18.1.0",
+    "zod": "4.5.4"
+  },
+  "private": true
 }

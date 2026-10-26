@@ -4,7 +4,7 @@ This is a locally reconstructed, unofficial modification of
 `0.8.1`. Its JavaScript in `dist/` is editable
 source; no compilation step is required. Node.js 22+ is required.
 
-This is `0.8.1-shared.3`, the installation produced by patch release 0.2.0.
+This is `0.8.1-shared.4`, the installation produced by patch release 0.2.2.
 See [CHANGELOG.md](CHANGELOG.md) for the session crash fixes and Pageborne server
 features, and [docs/PAGEBORNE.md](docs/PAGEBORNE.md) for library configuration,
 shared links and optional native Claude creation. The Pageborne client app is
@@ -81,4 +81,4 @@ documentation](https://code.claude.com/docs/en/cross-session-messaging#control-i
 See NOTICE.md for upstream attribution. Upstream material and dependencies
 retain their respective terms. The package is private to npm.
 
-Pageborne conversation sync includes bounded tool activity and provider-exposed thinking summaries, separate from answers. It excludes raw tool output and redacted/encrypted reasoning.
+Pageborne conversation sync includes bounded tool activity and provider-exposed thinking summaries, separate from answers. Shell actions also carry optional bounded command detail for Pageborne. Existing tool summaries and live events remain unchanged for Even Terminal glasses. It excludes raw tool output and redacted/encrypted reasoning.

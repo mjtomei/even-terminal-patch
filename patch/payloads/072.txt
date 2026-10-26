@@ -1,28 +1,117 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { conversationTurns, displayQuestion, installConversationSync } from '../dist/routes/pageborne-conversation.js';
-const user = (id, text) => ({ id, type: 'userMessage', content: [{ type: 'text', text }] });
-const assistant = (id, text) => ({ id, type: 'agentMessage', text });
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { CodexTranscript } from '../dist/codex/transcript.js';
+import { RemoteTranscript } from '../dist/claude/remote/transcript.js';
+import { conversationTurns } from '../dist/routes/pageborne-conversation.js';
 
-test('conversation endpoint exposes only text for the requested provider/session and retains all recent pairs beyond ten messages', async () => {
-  let handler, requested;
-  installConversationSync({ get(path, fn) { assert.equal(path, '/pageborne/conversation'); handler = fn; } }, (provider, id) => {
-    requested = [provider, id]; return { getStatus: () => ({ state: 'idle' }), getConversation: async () => Array.from({ length: 30 }, (_, n) => ({
-      id: `turn-${n}`, status: 'completed', items: [user(`u-${n}`, `Question ${n}`), assistant(`a-${n}`, `Answer ${n}`), { id: 'tool', type: 'commandExecution', command: 'must not appear' }],
-    })) };
-  });
-  let result; await handler({ query: { provider: 'codex', sessionId: 's' } }, { json(value) { result = value; } });
-  assert.deepEqual(requested, ['codex', 's']); assert.equal(result.turns.length, 30); assert(!JSON.stringify(result).includes('must not appear'));
+test('Codex activities retain display summaries through streaming and restart without contaminating answers', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'activity-')transcript = new CodexTranscript('fixture', dir);
+        transcript.merge([{ id: 'turn', status: 'inProgress', items: [{ id: 'u', type: 'userMessage', content: [{ type: 'text', text: 'Question' }] }] }]);
+        const notify = (method, item) => transcript.notification(method, { turnId: 'turn', ...item });
+        notify('item/started', { item: { id: 'think', type: 'reasoning', content: ['SECRET RAW'], encryptedContent: 'SECRET ENCRYPTED' } });
+        notify('item/reasoning/summaryTextDelta', { itemId: 'think', delta: 'Checking the relevant file.' });
+        notify('item/completed', { item: { id: 'think', type: 'reasoning' } });
+        notify('item/started', { item: { id: 'cmd', type: 'commandExecution', command: 'cat todo.txt', aggregatedOutput: 'SECRET OUTPUT' } });
+        let turn = conversationTurns(transcript.snapshot())[0];
+        assert.equal(turn.answer, ''); assert.equal(turn.activities[0].text, 'Checking the relevant file.');
+        assert.equal(turn.activities[0].state, 'complete'); assert.equal(turn.activities[1].state, 'pending');
+        notify('item/completed', { item: { id: 'cmd', type: 'commandExecution', command: 'cat todo.txt', status: 'failed' } });
+        notify('item/completed', { item: { id: 'a', type: 'agentMessage', text: 'Answer' } });
+        transcript.flush();
+        const restored = new CodexTranscript('fixture', dir);
+        turn = conversationTurns(restored.snapshot())[0];
+        assert.equal(turn.activities[1].state, 'error'); assert.equal(turn.answer, 'Answer');
+        assert.doesNotMatch(JSON.stringify(restored.snapshot()), /SECRET/);
+        assert.deepEqual(restored.history().map(i => i.text), ['Question', 'Answer']);
+        restored.merge([{ id: 'turn', items: [{ id: 'cmd', type: 'commandExecution', command: 'cat todo.txt', status: 'inProgress' }] }]);
+        assert.equal(conversationTurns(restored.snapshot())[0].activities[1].state, 'error');
+        restored.flush();
+    } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('conversation display preserves repeated inputs and recognizes both glasses and web question wrappers', () => {
-  const marker = 'Pageborne question 00000000-0000-4000-8000-000000000001';
-  const question = 'Explain this.\n\nQuestion:\nPreserve my text.';
-  for (const platform of ['text-only glasses.', 'a phone and tablet web reader.']) {
-    const wrapped = `${marker}\nYou are a reading companion ${platform === 'text-only glasses.' ? 'on' : 'in'} ${platform}\n\nCurrent reading position (source material):\n{}\n\nQuestion:\n${question}`;
-    assert.deepEqual(displayQuestion(wrapped), { marker, question });
-    const turns = conversationTurns([{ id: 'turn', status: 'inProgress', items: [user('one', 'Again?'), user('two', 'Again?'), assistant('a', 'Answer'), user('three', wrapped)] }]);
-    assert.deepEqual(turns.map(t => [t.question, t.answer, t.state]), [['Again?', '', 'complete'], ['Again?', 'Answer', 'complete'], [question, '', 'pending']]);
-  }
-  assert.deepEqual(displayQuestion(question), { question });
+test('Claude stores exposed thinking and tool lifecycle, excluding tool results and redacted blocks', () => {
+    const transcript = new RemoteTranscript('fixture', () => {});
+    let n = 0;
+    const ingest = (type, content, extra = {}) => transcript.ingest({ sequence_num: ++n, payload: { type, message: { content }, ...extra } }, false);
+    ingest('user', 'Question');
+    ingest('assistant', [{ type: 'thinking', thinking: 'Checking relevant files.', signature: 'SECRET SIGNATURE' },
+        { type: 'redacted_thinking', data: 'SECRET REDACTED' }, { type: 'tool_use', id: 'read', name: 'Read', input: { file_path: '/project/agents.md' } }]);
+    let turns = conversationTurns(transcript.snapshot('busy'));
+    assert.equal(turns.length, 1); assert.equal(turns[0].answer, ''); assert.equal(turns[0].activities.length, 2);
+    assert.equal(turns[0].activities[1].state, 'pending');
+    ingest('user', [{ type: 'tool_result', tool_use_id: 'read', content: 'SECRET FILE' }]);
+    ingest('assistant', [{ type: 'text', text: 'Answer' }]); ingest('result', [], { is_error: false });
+    turns = conversationTurns(transcript.snapshot());
+    assert.equal(turns.length, 1); assert.equal(turns[0].activities[1].state, 'complete'); assert.equal(turns[0].answer, 'Answer');
+    assert.doesNotMatch(JSON.stringify(transcript.snapshot()), /SECRET/);
+    assert.deepEqual(transcript.history().map(i => i.text), ['Question', 'Answer']);
+    assert.deepEqual(transcript.initialMessages().map(i => i.text.trim()), ['Question', 'Answer']);
+});
+
+test('long shell detail is Pageborne-only; legacy summaries, events and ordinary history stay unchanged', async () => {
+    const { summarizeCodexItem } = await import('../dist/codex/summarize.js');
+    cons= await import('../dist/claude/summarize.js');
+    const command = 'node scripts/inspect-document.mjs --input documents/long-file-name.md --format markdown --include-annotations';
+'Inspect the requested document and list all of its annotations';
+    const dir = mkdtempSync(join(tmpdir(), 'command-detail-')codex = new CodexTranscript('fixture', dir);
+        codex.merge([{ id: 'turn', status: 'inProgress', items: [{ id: 'u', type: 'userMessage', content: [{ type: 'text', text: 'Question' }] }] }]);
+        codex.notification('item/started', { turnId: 'turn', item: { id: 'cmd', type: 'commandExecution', command, aggregatedOutput: 'EXCLUDED OUTPUT' } });
+        let action = conversationTurns(codex.snapshot())[0].activities[0];
+        assert.equal(action.text, 'Shell ' + command.slice(0, 50) + '...');
+        assert.equal(summarizeCodexItem({ type: 'commandExecution', command }), action.text);
+        assert.equal(action.detail, 'Shell ' + command);
+        // A completion without the original input must keep the observed detail.
+        codex.notification('item/completed', { turnId: 'turn', item: { id: 'cmd', type: 'commandExecution' } });
+        codex.notification('item/completed', { turnId: 'turn', item: { id: 'a', type: 'agentMessage', text: 'Answer' } });
+        codex.flush();
+        const restored = new CodexTranscript('fixture', dir);
+        assert.equal(conversationTurns(restored.snapshot())[0].activities[0].detail, 'Shell ' + command);
+        assert.deepEqual(restored.history(), [{ role: 'user', text: 'Question' }, { role: 'assistant', text: 'Answer' }]);
+        assert.doesNotMatch(JSON.stringify(restored.snapshot()), /EXCLUDED OUTPUT/);
+        // Recover a longer command from retained provider history after upgrade.
+        const old = new CodexTranscript('old');
+        old.merge([{ id: 'turn', items: [{ id: 'u', type: 'userMessage', content: [{ type: 'text', text: 'Question' }] },
+            { id: 'cmd', type: 'activity', kind: 'tool', state: 'complete', text: action.text, complete: true }] }]);
+        old.merge([{ id: 'turn', items: [{ id: 'cmd', type: 'commandExecution', command, status: 'inProgress' }] }]);
+        action = conversationTurns(old.snapshot())[0].activities[0];
+        assert.equal(action.state, 'complete'); assert.equal(action.detail, 'Shell ' + command);
+
+        const events = [], claude = new RemoteTranscript('fixture', event => events.push(event));
+        claude.ingest({ sequence_num: 1, payload: { type: 'user', message: { content: 'Question' } } });
+        claude.ingest({ sequence_num: 2, payload: { type: 'assistant', message: { content: [
+            { type: 'tool_use', id: 'cmd', name: 'Bash', input: { command, description, extra: 'EXCLUDED INPUT' } },
+            { type: 'tool_use', id: 'read', name: 'Read', input: { file_path: '/project/agents.md', command: 'EXCLUDED INPUT' } },
+        ] } } });
+        claude.ingest({ sequence_num: 3, payload: { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'cmd', content: 'EXCLUDED OUTPUT' }] } } });
+        claude.ingest({ sequence_num: 4, payload: { type: 'assistant', message: { content: 'Answer' } } });
+        const actions = conversationTurns(claude.snapshot())[0].activities;
+        assert.equal(actions[0].detail, 'Bash ' + command); assert.equal(actions[0].state, 'complete');
+        assert.equal(actions[1].detail, undefined);
+        assert.equal('Bash', { command, description }), 'Bash ' + description.slice(0, 50) + '...');
+        assert.deepEqual(events, [
+            { type: 'user_prompt', text: 'Question' },
+            { type: 'tool_start', name: 'Bash', toolId: 'cmd', summary: 'Bash ' + description.slice(0, 50) + '...' },
+            { type: 'tool_start', name: 'Read', toolId: 'read', summary: 'Read agents.md' },
+            { type: 'text_delta', text: '\n\nAnswer' },
+        ]);
+        assert.deepEqual(claude.history(), [{ role: 'user', text: 'Question' }, { role: 'assistant', text: 'Answer' }]);
+        assert.deepEqual(claude.initialMessages(), [{ type: 'user_prompt', text: 'Question' }, { type: 'text_delta', text: 'Answer' }]);
+        assert.doesNotMatch(JSON.stringify(claude.snapshot()), /EXCLUDED/);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('long command detail is bounded and counted in the conversation budget', async () => {
+    const { commandDetail } = await import('../dist/pageborne-activity.js');
+    const detail = commandDetail('Shell', 'echo ' + 'x'.repeat(5000));
+    assert.equal(detail.length, 1000); assert(detail.endsWith('…'));
+    assert.equal(commandDetail('Bash', {}), undefined); assert.equal(commandDetail('Bash', ' '), undefined);
+    assert.equal(commandDetail('Bash', 'echo\n  two\twords'), 'Bash echo two words');
+    const snapshot = [{ id: 't', items: [{ id: 'u', type: 'userMessage', content: [{ type: 'text', text: 'Question' }] },
+        ...Array.from({ length: 24 }, (_, n) => ({ id: String(n), type: 'activity', kind: 'tool', text: 'Shell echo...', detail, state: 'complete' }))] }];
+    const activities = conversationTurns(snapshot)[0].activities;
+    assert.equal(activities.at(-1).id, '23');
+    assert(activities.reduce((n, a) => n + a.text.length + (a.detail?.length || 0), 0) <= 4000);
 });

@@ -1,11 +1,11 @@
 {
   "baseline_version": "0.8.1",
-  "output_files": 82,
-  "copy_bytes": 174917,
-  "insert_bytes": 341604,
+  "output_files": 83,
+  "copy_bytes": 175139,
+  "insert_bytes": 350422,
   "operation_counts": {
-    "insert": 1391,
-    "copy": 1521
+    "insert": 1400,
+    "copy": 1529
   },
   "literal_exact_match_check_bytes": 24,
   "literal_exact_match_check": "passed",
@@ -19,7 +19,7 @@
     {
       "path": "CHANGELOG.md",
       "copy_bytes": 29,
-      "insert_bytes": 2538
+      "insert_bytes": 3145
     },
     {
       "path": "NOTICE.md",
@@ -34,7 +34,7 @@
     {
       "path": "README.md",
       "copy_bytes": 29,
-      "insert_bytes": 4352
+      "insert_bytes": 4508
     },
     {
       "path": "UPSTREAM-README.md",
@@ -78,8 +78,8 @@
     },
     {
       "path": "dist/claude/remote/transcript.js",
-      "copy_bytes": 1288,
-      "insert_bytes": 5459
+      "copy_bytes": 1344,
+      "insert_bytes": 5714
     },
     {
       "path": "dist/claude/session.js",
@@ -163,8 +163,8 @@
     },
     {
       "path": "dist/codex/transcript.js",
-      "copy_bytes": 1973,
-      "insert_bytes": 7399
+      "copy_bytes": 2009,
+      "insert_bytes": 7850
     },
     {
       "path": "dist/debug.js",
@@ -212,6 +212,11 @@
       "insert_bytes": 142
     },
     {
+      "path": "dist/pageborne-activity.js",
+      "copy_bytes": 25,
+      "insert_bytes": 424
+    },
+    {
       "path": "dist/provider-routing.js",
       "copy_bytes": 360,
       "insert_bytes": 1411
@@ -234,7 +239,7 @@
     {
       "path": "dist/routes/pageborne-conversation.js",
       "copy_bytes": 287,
-      "insert_bytes": 4188
+      "insert_bytes": 4403
     },
     {
       "path": "dist/routes/pageborne-files.js",
@@ -304,7 +309,7 @@
     {
       "path": "docs/PAGEBORNE.md",
       "copy_bytes": 0,
-      "insert_bytes": 5624
+      "insert_bytes": 6851
     },
     {
       "path": "even-terminal",
@@ -368,8 +373,8 @@
     },
     {
       "path": "test/conversation-activity.test.js",
-      "copy_bytes": 27,
-      "insert_bytes": 4127
+      "copy_bytes": 132,
+      "insert_bytes": 9610
     },
     {
       "path": "test/pageborne-conversation.test.js",

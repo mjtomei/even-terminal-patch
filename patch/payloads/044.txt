@@ -1,71 +1,16 @@
-// Optional, authenticated conversation extension. No prompts are submitted.
-export const conversationCapabilities = provider => typeof provider.getConversation === 'function' ? { conversationSync: 1 } : {};
-
-export function displayQuestion(text) {
-  text = String(text || '').trim();
-  const match = /^(?:[^\n]{1,300}\n\n)?(Pageborne question [\da-f]{8}-[\da-f-]{27,})\n/i.exec(text);
-  if (!match) return { question: text };
-  const body = text.slice(match[0].length);
-  let question;
-  if (body.startsWith("You are the user's librarian,") && body.includes('\n\n')) question = body.slice(body.indexOf('\n\n') + 2);
-  else if (body.startsWith('You are a reading companion on text-only glasses.') || body.startsWith('You are a reading companion in a phone and tablet web reader.')) {
-    // JSON is serialized on one line, so embedded source/question delimiters
-    // cannot be mistaken for the boundary of the original question.
-    const file = /\n\nCurrent reading position \(source material\):\n[^\n]*\n\nQuestion:\n/.exec(body);
-    const excerpt = /\n\nReading context \(source material\):\n[^\n]*\n\n/.exec(body);
-    const boundary = file || excerpt;
-    if (boundary) question = body.slice(boundary.index + boundary[0].length);
-  }
-  return question == null ? { question: text } : { question, marker: match[1] };
-}
-
-export function conversationTurns(snapshot) {
-  const result = [];
-  for (const turn of snapshot) {
-    let current;
-    for (const item of turn.items || []) {
-'activity') {
-        if (current && typeof item.id === 'string' && ['tool', 'thinking', 'status'].includes(item.kind) && typeof item.text === 'string') {
-          (current.activities ||= []).push({ id: item.id.slice(0, 300), kind: item.kind,
-            text: item.text.trim().slice(0, item.kind === 'thinking' ? 800 : 200),
-            state: turn.status !== 'inProgress' && item.state === 'pending' ? 'complete'
-              : ['pending', 'complete', 'error'].includes(item.state) ? item.state : 'complete'tinue;
-      }
-      if (!['userMessage', 'agentMessage'].includes(item.type)) continue;
-      const text = item.type === 'userMessage' ? (item.content || []).filter(c => c.type === 'text').map(c => c.text || '').join('\n') : item.text;
-      if (!text?.trim()) continue;
-'userMessage' || !current) {
-        current = { id: `${turn.id}:${item.id}`, aliases: (item.aliases || []).map(id => `${turn.id}:${id}`),
-          ...(item.type === 'userMessage' ? displayQuestion(text) : { question: '' }), answer: '', state: 'complete' };
-        result.push(current);
-      }
-'agentMessage') current.answer += (current.answer ? '\n\n' : '') + text.trim();
+let getProvider;
+export function setSessionProviderResolver(resolver) { getProvider = resolver; }q.query.provider, sessionId);
+    await provider.attach?.(sessionId);
+    if (res.destroyed) returnconst cursor = Number(req.headers["last-event-id"] || req.query.after);
+    const canReplay = Number.isSafeInteger(cursor) && cursor >= (s.messages[0]?.id ?? 1) - 1 && cursor < s.nextId;
+    const replay = canReplay || ;
+    let replayedCount = 0;
+    if (replay) {if (canReplay && entry.id <= cursor)provider.isReplayable?.(sessionId, entry.msg) === false)    replaye// Fresh connections bootstrap the active turn from the daemon's snapshot;
+    // old pending approval cards are never replayed from a stale bridge buffer.
+    const initialTypes = [];
+    for (const msg of provider.initialMessages?.(sessionId, !replay || !s.messages.length) || []) {
+        if (replay && s.messages.some(e => e.msg.type === msg.type && e.msg.toolUseId === msg.toolUseId) && ["permission_request", "user_question"].includes(msg.type)) continue;
+        res.write(`data: ${JSON.stringify(msg)}\n\n`);
+        initialTypes.push(msg.type);
     }
-    if (current) current.state = turn.status === 'inProgress' ? 'pending' : /failed|interrupted/.test(turn.status) ? 'error' : 'complete';
-  }
-  // Match the reader's retained conversation budget, after removing passage
-  // wrappers. Older desktop history remains in the agent's own session.
-  const kept = []; let characters = 0;
-  for (const value of result.slice(-40).reverse()) {
-    const entry = { ...value, question: value.question.slice(0, 64000), answer: value.answer.slice(0, 16000) };
-    if (entry.activities) {
-      let size = 0;
-      entry.activities = entry.activities.slice(-24).reverse().filter(a => { size += a.text.length; return a.text && size <= 4000; }).reverse();
-      characters += entry.activities.reduce((n, a) => n + a.text.length, 0);
-    }
-    characters += entry.question.length + entry.answer.length;
-    if (characters > 100000) break;
-    kept.unshift(entry);
-  }
-  return kept;
-}
-ConversationSync(router, getProvider) {
-  router.get('/pageborne/conversation'typeof id !== 'string' || !id || id.length > 200) return'Missing or invalid session ID.' });
-    try {
-  q.query.provider, id);
-      if (!conversationCapabilities(provider).conversationSync) return'Conversation sync unavailable.' });
-      const turns = conversationTurns(await provider.getConversation(id));
-      res.json({ version: 1, sessionId: id, turns, state: provider.getStatus(id)?.state || 'idle' });
-    } catch (error) { res.status(error.statusCode || 502).json({ error: 'Could not load the shared conversation.' }); }
-  });
-}
+    res.write(`id: ${s.nextId - 1}\n:cursor\n\n`); replay=${replay} cursor=${canReplay ? cursor : 'none'} replayed=${replayedCount} initial=${initialTypes.join(',')}

@@ -1,4 +1,5 @@
 '../summarize.js';
+import { commandDetail } from '../../pageborne-activity.js';
 
 export const sequence = value => {
     try { return /^\d+$/.test(String(value)) ? BigInt(value) : null; } catch { return null; }
@@ -20,7 +21,7 @@ export class RemoteTranscript {
         const send = message => { if (notify) this.emit(message); };
         if (['user', 'assistant'].includes(event.typeext = textContent(event.message?.content);
             if (text.trim() && !event.isMeta && !event.isSyntheticntries.set(key, { role: event.typeevent.type === 'user') this.lastUser = keyentries.size > 1000) this.entries.delete(this.entries.keys().next().value);
-                send(event.type === 'user' ? { type: 'user_prompt', text } : { type: 'text_delta', text: `\n\n${text}`if (event.type === 'assistant' && Array.isArray(event.message?for (const [index, block] of event.message.content.entries(block?.type === 'tool_use'const summary|| {this.entries.set(`tool:${block.id || key + ':' + index}`, { role: 'activity', kind: 'tool', text: summary.slice(0, 200), state: 'pending'send({ type: 'tool_start', name: block.name, toolId: block.id, summary} else if (block?.type === 'thinking'// This is the displayable thinking block supplied by// Claude. Redacted blocks/signatures are not retained.entries.set(`thinking:${key}:${index}`, { role: 'activity', kind: 'thinking'text: typeof block.thinking === 'string' ? block.thinking.slice(0, 800) || 'Thinking…' : 'Thinking…', state: 'complete'}
+                send(event.type === 'user' ? { type: 'user_prompt', text } : { type: 'text_delta', text: `\n\n${text}`if (event.type === 'assistant' && Array.isArray(event.message?for (const [index, block] of event.message.content.entries(block?.type === 'tool_use'const summary|| {const detail = block.name === 'Bash' ? commandDetail('Bash', block.input?.command) : undefinedthis.entries.set(`tool:${block.id || key + ':' + index}`, { role: 'activity', kind: 'tool', text: summary.slice(0, 200)...(detail ? { detail } : {}), state: 'pending'send({ type: 'tool_start', name: block.name, toolId: block.id, summary} else if (block?.type === 'thinking'// This is the displayable thinking block supplied by// Claude. Redacted blocks/signatures are not retained.entries.set(`thinking:${key}:${index}`, { role: 'activity', kind: 'thinking'text: typeof block.thinking === 'string' ? block.thinking.slice(0, 800) || 'Thinking…' : 'Thinking…', state: 'complete'}
     'user' && Array.isArray(event.message?for (const block of event.message.content) if (block?.type === 'tool_result'activity = this.entries.get(`tool:${block.tool_use_idif (activity) activity.state = block.is_error ? 'error' : 'complete'while (this.entries.size > 1000) this.entries.delete(this.entries.keys().next().value);
         } else if (event.type === 'control_request' && event.request?.subtype === 'can_use_tool') {event.request_id, event.request);
             send(this.permissionMessage(event.request_id, event.request));
@@ -41,7 +42,8 @@ export class RemoteTranscript {
             if (entry.role === 'user' || !turns.length) turns.push({ id: `claude:${key}`, status: this.outcomes.get(key) || 'completed', items: [] });
             turns.at(-1).items.push(entry.role === 'user'
                 ? { id: key, type: 'userMessage', content: [{ type: 'text', text: entry.text }] }
-                : entry.role === 'activity' ? { id: key, type: 'activity', kind: entry.kind, text: entry.text, state: entry.state }
+                : entry.role === 'activity' ? { id: key, type: 'activity', kind: entry.kind, text: entry.text,
+                    ...(entry.detail ? { detail: entry.detail } : {}), state: entry.state }
                 : { id: key, type: 'agentMessage', text: entryconst last = turns.at(-1);
         if (last && !this.outcomes.has(this.lastUser) && (state !== 'idle' || last.items.at(-1).type === 'userMessage')) last.status = 'inProgress';
         return turns.slice(-40);

@@ -1,276 +1,139 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, rm, appendFile, writeFile, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { spawn } from 'node:child_process';
-import { once } from 'node:events';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { z } from 'zod';
-import { ClaudeChannel } from '../dist/claude/shared/channel.js';
-import { createSharedClaudeProvider } from '../dist/claude/shared/provider.js';
-import { JsonlReader, listEndpoints, registryDir, readJson } from '../dist/claude/shared/files.js';
-import { SharedTranscript } from '../dist/claude/shared/transcript.js';
-import { buildLaunch } from '../dist/claude/shared/launcher.js';
-import { recordHook } from '../dist/claude/shared/hook.js';
+import { EventEmitter } from 'node:events';
 
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-async function until(predicate, timeout = 4000) {
-    const end = Date.now() + timeout;
-    while (Date.now() < end) { if (await predicate()) return; await sleep(20); }
-    throw new Error('Condition did not become true');
+// Use the real SDK history reader against isolated saved sessions. Opening a
+// history/status/stream view must never start a Claude query or change its file.
+const configDir = await mkdtemp(join(tmpdir(), 'even-claude-sdk-test-'));
+const previousConfigDir = process.env.CLAUDE_CONFIG_DIR;
+process.env.CLAUDE_CONFIG_DIR = configDir;
+process.env.EVEN_CLAUDE_MODE = 'sdk';
+cons= await import('../dist/claude/provider.js');
+const { ClaudeSession } = await import('../dist/claude/session.js');
+const { default: core, codexProvider, claudeProvider } = await import('../dist/routes/core.js');
+const { default: events } = await import('../dist/routes/events.js');
+after(async () => {
+    await codexProvider.close();
+    if (previousConfigDir === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = previousConfigDir;
+    await rm(configDir, { recursive: true, force: true });
+});
+
+async function savedSession(messages) {
+    const id = randomUUID();
+    const directory = join(configDir, 'projects', '-tmp-even-sdk-test');
+    await mkdir(directorylet parent = null;
+    const records = messages.map(([type, content]) => {
+        const uuid = randomUUID();
+        const record = { type, uuid, parentUuid: parent, sessionId: id, cwd: '/tmp/even-sdk-test''2026-09-01T00:00:00.000Z',
+            message: { role: type, content, stop_reason: type === 'assistant' ? 'end_turn' : null } };
+        parent = uuid;
+        return record;
+    })directory, `${id}.jsonl`);
+    await writeFile(path, records.map(record => JSON.stringify(record)).join('\n') + '\n');
+    return { id, path };
 }
-async function fixture(t, { nativeMcp = false } = {}) {
-    const stateDir = await mkdtemp(join(tmpdir(), 'even-claude-test-'));
-    t.after(() => rm(stateDir, { recursive: true, force: true }));
-    const projectsDir = join(stateDir, 'config', 'projects');
-    const project = join(projectsDir, 'project'); await mkdir(projectsessionId = randomUUID(), dir = join(registryDir(stateDir), randomUUID());
-    await mkdir(dir, { recursive: true, mode: 0o700 })projectawait writeFile(path, '');
-    const hook = (hook_event_name, extra = {}) => recordHook(dir, { hook_event_name, session_id: sessionId, transcript_path: path, cwd: project, ...extra });
-    const native = async (type, text, extra = {}) => {
-        const record = { type, uuid: randomUUID(), sessionId, timestamp message: { content: [{ type: 'text', text }] }, ...extra };
-        await appendFile(path, JSON.stringify(record) + '\n'); return record;
-    };
-    hook('SessionStart', { model: 'existing-model', session_title: 'Existing terminal', source: 'startup' });
-    const notifications = [];
-    let channel;
-    if (!nativeMcp) {
-        channel = new ClaudeChannel(dir, { projectsDir, pollMs: 15, notify: async message => notifications.push(message) });
-        channel.ready = true; await channel.start();
-        t.after(() => channel.close());
+
+function handler(router, path, method = 'get') {
+    return router.stack.find(layer => layer.route?.path === path && layer.route.methods[method]).route.stack[0].handle;
+}
+function response() {
+    return { statusCode: 200, headers: {}, frames: [], destroyed: false,
+        status(code) { this.statusCode = code; return this; },
+        json(body) { this.body = body; return this; },
+        setHeader(name, value) { this.headers[name] = value; },
+        flushHeaders() {},
+        write(frame) { this.frames.push(frame); return true; } };
+}
+
+test('listed Claude sessions open through status and SSE without starting a query', async t => {
+    t.mock.method(ClaudeSession.prototype, 'start', () => assert.fail('Opening a saved session started Claude'));
+    t.mock.method(ClaudeSession.prototype, 'run', () => assert.fail('Opening a saved session sent a prompt'));
+    const f = await savedSession([['user', 'From the desktop'], ['assistant', [{ type: 'text', text: 'Saved reply' }]]]);
+    const before = await readFile(f.path, 'utf8'createClaudeProvider(() => assert.fail('Opening a saved session emitted a new message'));
+    assert.ok((50)).some(session => session.id === f.id));
+    const req = Object.assign(new EventEmitter(), { query: { provider: 'claude', sessionId: f.id }, headers: {} });
+    const status = response();
+    await handler(core, '/status')(req, status);
+    assert.equal(status.statusCode, 200);
+    assert.deepEqual(status.body, { state: 'idle', sessionId: f.id, provider: 'claude' });
+    const stream = response();
+    try {
+        await handler(events, '/events')(req, stream);
+        assert.equal(stream.headers['Content-Type'], 'text/event-stream');
+        const data = stream.frames.flatMap(frame => frame.split('\n')).filter(line => line.startsWith('data: ')).map(line => JSON.parse(line.slice(6)));
+        assert.ok(data.some(message => message.type === 'status' && message.state === 'idle' && message.sessionId === f.id));
+    } finally { req.emit('close'); }
+    assert.equal(await readFile(f.path, 'utf8'), before);
+});
+
+test('Claude history preserves string prompts and groups assistant updates before its display limit', async () => {for (let i = 0; i < 7; i++) {
+        messages.push(['user', i % 2 ? [{ type: 'text', text: `Prompt ${i}` }] : `Prompt ${i}`]);
+        messages.push(['assistant', [{ type: 'text', text: `Working ${i}` }, { type: 'tool_use', id: `tool-${i}`, name: 'Read', input: {} }]]);
+        messages.push(['user', [{ type: 'tool_result', tool_use_id: `tool-${i}`, content: 'Hidden tool output' }]]);
+        messages.push(['assistant', [{ type: 'text', text: `Reply ${i}` }, { type: 'text', text: 'Finished' }]]);
     }
-    return { stateDir, projectsDir, project, sessionId, dir, path, hook, native, notifications, channel };
-}
-function provider(t, f, options = {}) {
-    const events = [];
-    const p = createSharedClaudeProvider((id, message) => events.push({ id, ...message }), { stateDir: f.stateDir, pollMs: 20, timeoutMs: 500, ...options });
-    t.after(() => p.close());
-    return { p, events };
-}
+    const f = await savedSession(messages);
+    const res = response();
+    await handler(core, '/sessions/:id/history')({ params: { id: f.id }, query: { provider: 'claude', limit: '10' } }, res);
+    assert.equal(res.body.error, undefined);
+    assert.deepEqual(res.body.history, Array.from({ length: 5 }, (_, n) => n + 2).flatMap(i => [
+        { role: 'user', text: `Prompt ${i}` },
+        { role: 'assistant', text: `Working ${i}\n\nReply ${i}\nFinished` },
+    ]));
+});
 
-test('Claude launcher keeps native settings and rejects modes that could create a second owner', () => {
-    const launch = buildLaunch('/workspace/even', '/workspace/even/.state', ['--model', 'my-model', '--remote-control', 'Even test']);
-    assert.ok(launch.args.includes('my-model'));
-    assert.ok(!launch.args.includes('--permission-mode'));
-    assert.ok(!launch.args.includes('--allowedTools'));
-    assert.deepEqual(launch.args.slice(-2), ['--dangerously-load-development-channels', 'server:even']);
-    assert.equal(launch.mcp.mcpServers.even.command, process.execPath);
-    for (const args of [['--resume', randomUUID()], ['-rabc'], ['-p'], ['--bg'], ['--settings={}'], ['--safe-mode']]) {
-        assert.throws(() => buildLaunch('/workspace/even', '/tmp/even', args), /fresh interactive/);
+test('unknown Claude sessions fail before starting an SSE stream', async () => {
+    const id = randomUUID();
+    const req = Object.assign(new EventEmitter(), { query: { provider: 'claude', sessionId: id }, headers: {} });
+    const res = response();
+    try {
+        await assert.rejects(handler(events, '/events')(req, res), error => error.statusCode === 404);
+        assert.equal(res.headers['Content-Type'], undefined);
+    } finally { req.emit('close'); }
+});
+
+test('glasses can open and address a listed Claude session without a provider field', async t => {
+    t.mock.method(codexProvider, 'attach', () => assert.fail('Claude ID was sent to Codex'));
+    const f = await savedSession([['user', 'Desktop prompt'], ['assistant', 'Saved reply']]);
+    const beforeListing = response();
+    await handler(core, '/status')({ query: { sessionId: f.id } }, beforeListing);
+    assert.equal(beforeListing.body.provider, 'claude');
+    const listed = response();
+    await handler(core, '/sessions')({ query: { provider: 'claude', limit: '100' } }, listed);
+    assert.ok(listed.body.sessions.some(session => session.id === f.id));
+    const req = Object.assign(new EventEmitter(), { query: { sessionId: f.id }, headers: {} });
+    const stream = response();
+    try {
+        await handler(events, '/events')(req, stream);
+        assert.ok(stream.frames.some(frame => frame.includes('"provider":"claude"')));
+    } finally { req.emit('close'); }
+    for (const path of ['/status', '/messages']) {
+        const res = response();
+        await handler(core, path)(req, res);
+        assert.equal(res.body.provider, 'claude');
     }
-});
-
-test('JSONL reading preserves partial UTF-8, skips corrupt and oversized records, and handles replacement', async t => {
-    const dir = await mkdtemp(join(tmpdir(), 'even-jsonl-test-')); t.after(() => rm(dir, { recursive: true, force: true }))dir, 'events.jsonl');
-    const line = Buffer.from(JSON.stringify({ text: 'hello 🌍' }) + '\n');
-    await writeFile(path, line.subarray(0, line.length - 4));
-    const reader = new JsonlReader(path, 100);
-    assert.deepEqual(reader.read(), []);
-    await appendFile(path, line.subarray(line.length - 4));
-    await appendFile(path, '\0broken\nnull\n[]\n"scalar"\n' + 'x'.repeat(200) + '\n{"ok":true}\n');
-    assert.deepEqual(reader.read(), [{ text: 'hello 🌍' }, { ok: true }]);
-    await writeFile(path, '{"replaced":true}\n');
-    assert.deepEqual(reader.read(), [{ replaced: true }]);
-});
-
-test('Transcript preserves repeated user messages, handles strings, and restricts real paths', async t => {
-    const f = await fixture(t);
-    await f.native('user', 'repeat', { message: { content: 'repeat' } });
-    await f.native('assistant', 'answer');
-    await f.native('user', 'repeat');
-    await f.native('assistant', 'second answer');
-    await f.native('assistant', '', { message: {} });
-    const transcript = new SharedTranscript(f.sessionId, f.path, { projectsDir: f.projectsDir });
-    transcript.refresh(); transcript.refresh();
-    assert.deepEqual(transcript.history().map(x => x.text), ['repeat', 'answer', 'repeat', 'second answer']);
-    const outside = join(f.stateDir, `${f.sessionId}.jsonl`); await writeFile(outside, '{}\n');
-    const link = join(f.projectsDir, `${f.sessionId}.jsonl`); await symlink(outside, link);
-    assert.throws(() => new SharedTranscript(f.sessionId, link, { projectsDir: f.projectsDir }).refresh(), /outside/);
-});
-
-test('Shared Claude observes terminal messages and sends input only to the existing channel', async t => {
-    const f = await fixture(t);
-    await f.native('user', 'Desktop prompt'); await f.native('assistant', 'Desktop response');
-    f.channel.refresh();
-    const { p, events } = provider(t, f);
-    assert.equal((await p.listSessions(10))[0].id, f.sessionId);
-    await p.attach(f.sessionId);
-    assert.equal((await p.getHistory(f.sessionId, 10)).at(-1).text, 'Desktop response');
-    assert.equal(p.initialMessages(f.sessionId)[0].text, 'Desktop prompt');
-    f.hook('UserPromptSubmit'); await f.native('user', 'Phone prompt'); await f.native('assistant', 'Phone response');
-    await until(() => events.some(e => e.type === 'text_delta' && e.text.includes('Phone response')));
-    const before = events.filter(e => e.type === 'text_delta' && e.text.includes('Phone response')).length;
-    await p.getHistory(f.sessionId, 10);
-    assert.equal(events.filter(e => e.type === 'text_delta' && e.text.includes('Phone response')).length, before);p.prompt(f.sessionId, 'From Even');
-    assert.equal(result.sessionId, f.sessionId);
-    assert.equal(f.notifications.length, 1);
-    assert.equal(f.notifications[0].method, 'notifications/claude/channel');
-    assert.equal(f.notifications[0].params.content, 'From Even');
-    assert.equal(f.notifications[0].params.meta.session_id, f.sessionId);
-    assert.equal(f.channel.model, 'existing-model');
-    await assert.rejects(p.prompt(randomUUID(), 'No fork'), /never resumed/);
-    await assert.rejects(p.prompt(undefined, 'No creation'), /Select a session/);
-});
-
-test('Permission IDs are required, external completion clears cards, and unsupported controls fail explicitly', async t => {
-    const f = await fixture(t); const { p } = provider(t, f); await p.attach(f.sessionId);
-    const permission = { request_id: 'abcde', tool_name: 'Bash', description: 'Run test', input_preview: '{"command":"test"}' };
-    f.hook('PreToolUse', { tool_name: 'Bash', tool_use_id: 'native-tool' });
-    f.channel.permission(permission);
-    await until(() => p.getStatus(f.sessionId)?.state === 'awaiting');
-    assert.ok(p.initialMessages(f.sessionId).some(m => m.toolUseId === 'abcde'));
-    await assert.rejects(p.respondPermission(f.sessionId, 'allow'), /request ID/);
-    await assert.rejects(p.respondPermission(f.sessionId, 'allowAlways', 'abcde'), /allow or deny/);
-    f.hook('PostToolUse', { tool_name: 'Bash', tool_use_id: 'native-tool' });
-    await p.getHistory(f.sessionId, 10);
-    assert.equal(p.isReplayable(f.sessionId, { type: 'permission_request', toolUseId: 'abcde' }), false);
-    await assert.rejects(p.respondPermission(f.sessionId, 'allow', 'abcde'), /no longer pending/);
-    f.channel.permission({ ...permission, request_id: 'fghij' });
-    await p.respondPermission(f.sessionId, 'deny', 'fghij');
-    assert.deepEqual(f.notifications.at(-1), { method: 'notifications/claude/channel/permission', params: { request_id: 'fghij', behavior: 'deny' } });
-    await assert.rejects(p.respondQuestion(f.sessionId, 'yes'), { statusCode: 501 });
-    await assert.rejects(p.interrupt(f.sessionId), { statusCode: 501 });
-});
-
-test('Detach, reconnect and bridge shutdown never stop Claude or answer pending permissions', async t => {
-    const f = await fixture(t); const { p } = provider(t, f); await p.attach(f.sessionId);
-    f.channel.permission({ request_id: 'abcde', tool_name: 'Bash', description: 'Waiting', input_preview: '{}' });
-    await p.detach(f.sessionId); await p.close();
-    assert.equal(f.channel.ready, true); assert.equal(f.channel.pending.size, 1); assert.equal(f.notifications.length, 0);
-    const { p: other } = provider(t, f); await other.attach(f.sessionId);
-    assert.equal(other.getStatus(f.sessionId).state, 'awaiting');
-    await f.channel.close();
-    await assert.rejects(other.prompt(f.sessionId, 'Do not fork'), /never resumed|disconnected/);
-    assert.equal(f.notifications.length, 0);
-});
-
-test('A missing channel registration can recover on the same provider and repeated prompts retain identity', async t => {
-    const f = await fixture(t); let missing = false;
-    const { p, events } = provider(t, f, { endpoints: () => missing ? [] : listEndpoints(f.stateDir) });
-    await f.native('user', 'repeat'); await f.native('assistant', 'first');
-    await p.attach(f.sessionId);
-    missing = true;
-    await until(() => p.getStatus(f.sessionId)?.connected === false);
-    assert.ok((await p.getHistory(f.sessionId, 10)).length);
-    // Expire the channel ring buffer while the same input text is used for a new turn.
-    await f.native('user', 'repeat'); await f.native('assistant', 'second');
-    f.channel.refresh(501; i++) f.channel.status();
-    missing = false;
-    await until(() => p.getStatus(f.sessionId)?.connected === true);
-    assert.ok(events.some(e => e.type === 'user_prompt' && e.text === 'repeat'));
-    assert.ok(events.some(e => e.type === 'text_delta' && e.text.includes('second')));
-});
-
-test('Completion of a different tool does not dismiss a pending approval', async t => {
-    const f = await fixture(t);
-    f.hook('PreToolUse', { tool_name: 'Bash', tool_use_id: 'approved-tool' });
-    f.channel.permission({ request_id: 'abcde', tool_name: 'Bash', description: 'Pending', input_preview: '{}' });
-    f.hook('PostToolUse', { tool_name: 'Bash', tool_use_id: 'other-tool' });
-    f.channel.refresh();
-    assert.equal(f.channel.pending.size, 1);
-    f.hook('PostToolUse', { tool_name: 'Bash', tool_use_id: 'approved-tool' });
-    f.channel.refresh();
-    assert.equal(f.channel.pending.size, 0);
-});
-
-test('A conversation switch invalidates the old selection and subagent hooks cannot rebind it', async t => {
-    const f = await fixture(t); const { p } = provider(t, f); await p.attach(f.sessionId);
-    f.hook('SessionStart', { agent_id: 'child', session_id: randomUUID(), transcript_path: '/other/path' });
-    f.channel.refresh(); assert.equal(f.channel.sessionId, f.sessionId);
-    const nextId = randomUUID(), nextPath = join(f.project, `${nextId}.jsonl`); await writeFile(nextPath, '');
-    f.hook('SessionEnd', { reason: 'clear' });
-    f.hook('SessionStart', { session_id: nextId, transcript_path: nextPath, source: 'clear' });
-    f.channel.refresh();
-    await assert.rejects(p.prompt(f.sessionId, 'Old session'), /never resumed|changed conversations/);
-    assert.equal(f.notifications.length, 0);
-    await p.prompt(nextId, 'New session');
-    assert.equal(f.notifications[0].params.meta.session_id, nextId);
-});
-
-test('Ambiguous sends are not automatically retried and duplicate prompt IDs cannot be reused', async t => {
-    const f = await fixture(t); const { p } = provider(t, f);
-    let calls = 0;
-    f.channel.notify = async () => { calls++; throw new Error('Disconnected after write'); };
-    await assert.rejects(p.prompt(f.sessionId, 'one attempt'), /Disconnected after write/);
-    assert.equal(calls, 1);
-    const promptId = [...f.channel.prompts.keys()][0];
-    await assert.rejects(f.channel.prompt({ sessionId: f.sessionId, generation: f.channel.generation, text: 'one attempt', promptId }), /already submitted/);
-    assert.equal(calls, 1);
-});
-
-test('Channel history survives restart in chronological order without publishing proposed replies', async t => {
-    const f = await fixture(t); const { p } = provider(t, f);
-    await f.native('user', 'Terminal'); await sleep(5); await f.native('assistant', 'First'); await sleep(5);
-    await p.prompt(f.sessionId, 'Glasses');
-    const meta = f.notifications.at(-1).params.meta;
-    await sleep(5); await f.channel.reply({ ...meta, text: 'Second' });
-    await sleep(5); await f.native('user', 'Terminal again'); await sleep(5); await f.native('assistant', 'Third');
-    const proposed = { type: 'tool_use', id: randomUUID(), name: 'mcp__even__reply', input: { ...meta, text: 'Not approved' } };
-    await f.native('assistant', '', { message: { content: [proposed] } });
-    f.channel.refresh();
-    const expected = ['Terminal', 'First', 'Glasses', 'Second', 'Terminal again', 'Third'];
-    assert.deepEqual(f.channel.transcript.history().map(m => m.text), expected);
-    await f.channel.close();
-    const restarted = new ClaudeChannel(f.dir, { projectsDir: f.projectsDir, notify: async () => {} });
-    restarted.ready = true; await restarted.start(); t.after(() => restarted.close());
-    assert.deepEqual(restarted.transcript.history().map(m => m.text), expected);
-});
-
-test('Real MCP stdio channel initializes, relays messages and permissions, and replies without an SDK query', async t => {
-    const f = await fixture(t, { nativeMcp: true });
-    const client = new Client({ name: 'claude-test-runtime', version: '1' });
-    const transport = new StdioClientTransport({ command: process.execPath, args: [join(process.cwd(), 'bin/claude-channel.js')],
-        env: { ...process.env, EVEN_CLAUDE_LAUNCH_DIR: f.dir, CLAUDE_CONFIG_DIR: join(f.stateDir, 'config') }, stderr: 'pipe' });
-    const notifications = [];
-    client.setNotificationHandler(z.object({ method: z.literal('notifications/claude/channel'), params: z.any() }), n => notifications.push(n));
-    await client.connect(transport); t.after(() => client.close());
-    const { p, events } = provider(t, f);
-    await until(async () => (await p.listSessions(10)).length === 1);
-    assert.ok(client.getServerCapabilities().experimental['claude/channel']);
-    assert.equal((await client.listTools()).tools[0].name, 'reply');
-    await p.prompt(f.sessionId, 'MCP input'); await until(() => notifications.length === 1);callTool({ name: 'reply', arguments: { ...notifications[0].params.meta, text: 'MCP response' } });
-    assert.ok(!result.isError);
-    await until(() => events.some(e => e.type === 'text_delta' && e.text.includes('MCP response')));
-    const endpoint = listEndpoints(f.stateDir)[0];
-    const unauthorized = await fetch(endpoint.url + '/snapshot'); assert.equal(unauthorized.status, 401);
-    await client.notification({ method: 'notifications/claude/channel/permission_request', params: { request_id: 'abcde', tool_name: 'Bash', description: 'Test', input_preview: '{}' } });
-    await until(() => p.getStatus(f.sessionId)?.state === 'awaiting');
-});
-
-for (const omitProvider of [false, true]) test(`Real Even HTTP/SSE routes select shared Claude, await approval errors and keep the owner alive (provider ${omitProvider ? 'omitted' : 'explicit'})`, async t => {
-    const f = await fixture(t);
-    const token = randomUUID((process.execPath, ['dist/index.js'], { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env,
-        EVEN_TERMINAL_STATE_DIR: f.stateDir, EVEN_CLAUDE_MODE: 'shared', DEFAULT_PROVIDER: omitProvider ? 'codex' : 'claude', EVEN_SHOW_QR: '0',
-        EVEN_BIND_HOST: '127.0.0.1', PORT: '0', BRIDGE_TOKEN: token, CODEX_APP_SERVER_URL: `unix://${join(f.stateDir, 'absent.sock')}` } });
-    let logs = ''; child.stdout.on('data', b => { logs += b; }); child.stderr.on('data', b => { logs += b; });
-    t.after(async () => { if (child.exitCode === null) { child.kill('SIGTERM'); await once(child, 'exit'); } });
-    await until(() => /listening http:\/\/127.0.0.1:\d+/.test(logs));
-    const url = logs.match(/listening (http:\/\/127.0.0.1:\d+)/)[1];
-    const call = (path, body) => fetch(url + '/api' + path, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        method: body ? 'POST' : 'GET', body: body ? JSON.stringify(body) : undefined });
-(await call('/sessions?provider=claude')).json(); assert.equal(sessions.sessions[0].id, f.sessionId);
-    const selection = omitProvider ? {} : { provider: 'claude' };
-    const query...selection, sessionId: f.sessionId }); t.after);
-    const stream = await fetch(`${url}/api/events?${query}`, { headers: { Authorization: `Bearer ${token}` }, });
-    assert.equal(stream.status, 200);
-    let sse = ''; const reading = (async () => { try { for await (const data of stream.body) sse += Buffer.from(data).toString(); } catch {} })();
-    t.after(() => reading);
-    assert.equal((await call(`/status?${query}`)).status, 200);
-    assert.equal((await (await call(`/messages?${query}`)).json()).provider, 'claude');
-(await call(`/sessions/${f.sessionId}/history?${new URLSearchParams(selection)}`)).json();
-    assert.equal(history.error, undefined);
-    assert.ok(Array.isArray(history.history));
-    assert.equal((await call('/prompt', { ...selection, sessionId: f.sessionId, text: 'Real HTTP' })).status, 202);
-    await until(() => sse.includes('Real HTTP'));
-    f.channel.permission({ request_id: 'abcde', tool_name: 'Bash', description: 'Permission', input_preview: '{}' });
-    await until(() => sse.includes('abcde'));
-    assert.equal((await call('/permission-response', { ...selection, sessionId: f.sessionId, decision: 'allow', toolUseId: 'stale' })).status, 409);
-    assert.equal((await call('/question-response', { ...selection, sessionId: f.sessionId, answer: 'yes' })).status, 501);
-    assert.equal((await call('/interrupt', { ...selection, sessionId: f.sessionId })).status, 501);
-    controller.abort(); await reading;
-    child.kill('SIGTERM'); await once(child, 'exit');
-    assert.equal(f.channel.pending.size, 1); assert.equal(f.channel.ready, true);
-    assert.equal(f.notifications.filter(n => n.method.includes('/permission')).length, 0);
+    const history = response();
+    await handler(core, '/sessions/:id/history')({ params: { id: f.id }, query: {} }, history);
+    assert.deepEqual(history.body, { history: [{ role: 'user', text: 'Desktop prompt' }, { role: 'assistant', text: 'Saved reply' }] });
+    const calls = [];
+    t.mock.method(claudeProvider, 'prompt', async (id, text) => { calls.push(['prompt', id, text]); return 'claude' }; });
+    for (const method of ['respondPermission', 'respondQuestion', 'interrupt']) {
+        t.mock.method(claudeProvider, method, (...args) => calls.push([method, ...args]));
+    }
+    const prompt = response();
+    await handler(core, '/prompt', 'post')({ body: { sessionId: f.id, text: 'Glasses prompt' } }, prompt);
+    assert.equal(prompt.statusCode, 202);
+    assert.equal(prompt.body.provider, 'claude');
+    for (const path of ['/permission-response', '/question-response', '/interrupt']) {
+        const res = response();
+        await handler(core, path, 'post')({ body: { sessionId: f.id, decision: 'allow', answer: 'yes', toolUseId: 'request' } }, res);
+        assert.equal(res.statusCode, 200);
+    }
+    assert.deepEqual(calls, [['prompt', f.id, 'Glasses prompt'], ['respondPermission', f.id, 'allow', 'request'],
+        ['respondQuestion', f.id, 'yes', 'request'], ['interrupt', f.id]]);
 });

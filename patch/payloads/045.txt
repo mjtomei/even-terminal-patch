@@ -1,171 +1,73 @@
-import { createHash } from 'node:crypto';
-import { constants } from 'node:fs';
-import { mkdir, lstat, realpath, readFile, open, rename, unlink, writeFile } from 'node:fs/promises''node:os';
-import path from 'node:path';
-import { libraryOriginal, libraryExportDirectory, librarySnapshotBytes } from './pageborne-library.js';
+// Optional, authenticated conversation extension. No prompts are submitted.
+export const conversationCapabilities = provider => typeof provider.getConversation === 'function' ? { conversationSync: 1 } : {};
 
-const MAX_BYTES = 16 * 1024 * 1024, CHUNK_BYTES = 768 * 1024;
-const NAMES = new Set(['original.pdf', 'original.md', 'original.txt', 'reflow.md', 'index.json']);
-const hash = value => createHash('sha256').update(value).digest('hex');
-const locks = new Map();
-async function locked(key, work) {
-  const prior = locks.get(key) || Promise.resolve();
-  const next = prior.catch(() => {}).then(work); locks.set(key, next);
-  try { return await next; } finally { if (locks.get(key) === next) locks.delete(key); }
-}
-function descriptor(file) {
-  if (!file || !NAMES.has(file.name) || !/^[a-f0-9]{64}$/.test(file.sha256)
-    || !Number.isSafeInteger(file.bytes) || file.bytes < 0 || file.bytes > MAX_BYTES) throw new Error('Invalid paper file.');
-  return { name: file.name, bytes: file.bytes, sha256: file.sha256 };
-}
-function manifest(files) {
-  if (!Array.isArray(files) || files.length !== 3) throw new Error('Invalid paper files.');
-  files = files.map(descriptor).sort((a, b) => a.name.localeCompare(b.name));
-  if (new Set(files.map(f => f.name)).size !== 3 || !files.some(f => f.name.startsWith('original.'))
-    || !files.some(f => f.name === 'reflow.md') || !files.some(f => f.name === 'index.json')) throw new Error('Missing paper files.');
-  return files;
-}
-async function directory({ paperId, workspace, library }, options = {}) {
-  if (library) return libraryExportDirectory(library, options);
-  let { baseDir = process.env.PAGEBORNE_PAPER_BASE || path.join(homedir(), '.pageborne/papers') } = options;
-  if (typeof paperId !== 'string' || !paperId || paperId.length > 512) throw new Error('Invalid paper ID.');
-  const paperName = `paper-${hash(paperId).slice(0, 24)}`;
-  let folder;
-  if (workspace != null) {
-    const { cwd, workspaceId } = workspace;
-    if (typeof cwd !== 'string' || cwd.length > 2000 || /[\x00-\x1f]/.test(cwd) || !path.isAbsolute(cwd) || path.resolve(cwd) !== cwd
-      || typeof workspaceId !== 'string' || !workspaceId || workspaceId.length > 512
-      || path.basename(cwd) !== `session-${hash(workspaceId).slice(0, 24)}` || path.basename(path.dirname(cwd)) !== paperName) throw new Error('Invalid paper workspace.');
-    // Use the directory that was actually created, even if the phone's base
-    // preference has since changed. Never accept an arbitrary session cwd.
-    for (const dir of [path.dirname(cwd), cwd]) {
-      const stat = await lstat(dir);
-      if (!stat.isDirectory() || stat.isSymbolicLink() || await realpath(dir) !== dir) throw new Error('Unsafe paper workspace.');
-    }
-    const metadata = path.join(cwd, 'paper.json');
-    if (!await safeFile(metadata)) throw new Error('Missing paper workspace.');
-    const identity = JSON.parse(await readFile(metadata, 'utf8'));
-    if (identity.paperId !== paperId || identity.workspaceId !== workspaceId) throw new Error('Paper workspace identity mismatch.');
-    folder = cwd;
-  } else {
-    if (baseDir.startsWith('~/')) baseDir = path.join(homedir(), baseDir.slice(2));
-    if (!path.isAbsolute(baseDir)) throw new Error('Invalid paper base.');
-    await mkdir(baseDir, { recursive: true, mode: 0o700 }); const root = await realpath(baseDir);
-    folder = path.join(root, paperName); await mkdir(folder, { recursive: true, mode: 0o700 });
-    const stat = await lstat(folder);
-    if (!stat.isDirectory() || stat.isSymbolicLink() || await realpath(folder) !== folder) throw new Error('Unsafe paper directory.');
+export function displayQuestion(text) {
+  text = String(text || '').trim();
+  const match = /^(?:[^\n]{1,300}\n\n)?(Pageborne question [\da-f]{8}-[\da-f-]{27,})\n/i.exec(text);
+  if (!match) return { question: text };
+  const body = text.slice(match[0].length);
+  let question;
+  if (body.startsWith("You are the user's librarian,") && body.includes('\n\n')) question = body.slice(body.indexOf('\n\n') + 2);
+  else if (body.startsWith('You are a reading companion on text-only glasses.') || body.startsWith('You are a reading companion in a phone and tablet web reader.')) {
+    // JSON is serialized on one line, so embedded source/question delimiters
+    // cannot be mistaken for the boundary of the original question.
+    const file = /\n\nCurrent reading position \(source material\):\n[^\n]*\n\nQuestion:\n/.exec(body);
+    const excerpt = /\n\nReading context \(source material\):\n[^\n]*\n\n/.exec(body);
+    const boundary = file || excerpt;
+    if (boundary) question = body.slice(boundary.index + boundary[0].length);
   }
-  folder = path.join(folder, 'files'); await mkdir(folder, { recursive: true, mode: 0o700 });
-  const stat = await lstat(folder);
-  if (!stat.isDirectory() || stat.isSymbolicLink() || await realpath(folder) !== folder) throw new Error('Unsafe paper directory.');
-  return folder;
-}
-const filePath = (folder, file) => path.join(folder, `${file.sha256}-${file.name}`);
-async function destination(folder, file, library, options) {
-  if (library && file.name.startsWith('original.')) {
-    if (library.snapshot === true) {
-      const extension = /\.pdf$/i.test(library.name) ? 'pdf' : /\.txt$/i.test(library.name) ? 'txt' : 'md';
-      if (file.sha256 !== library.sha256 || file.name !== `original.${extension}`) throw new Error('Invalid library snapshot.');
-      return filePath(folder, file);
-    }
-    const original = await libraryOriginal(library, options);
-    if (original.sha256 !== file.sha256 || original.bytes !== file.bytes) throw new Error('Library original differs from this paper.');
-    return original.path;
-  }
-  return filePath(folder, file);
-}
-async function safeFile(file) {
-  try {
-    const stat = await lstat(file);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) throw new Error('Unsafe paper file.');
-    return stat;
-  } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
-}
-async function verified(file, meta) {
-  const stat = await safeFile(file);
-  if (!stat || stat.size !== meta.bytes) return false;
-  return hash(await readFile(file)) === meta.sha256;
+  return question == null ? { question: text } : { question, marker: match[1] };
 }
 
-export async function paperFilesStatus({ paperId, files, workspace, library }, options) {
-  files = manifest(files); const folder = await directory({ paperId, workspace, library }, options); const missing = [];
-  for (const file of files) {
-    const target = await destination(folder, file, library, options);
-    await locked(target, async () => {
-      if (await verified(target, file)) return;
-      if (library?.snapshot === true && file.name.startsWith('original.')) {
-        const bytes = await librarySnapshotBytes(library, options);
-        if (bytes?.length === file.bytes) {
-          await writeFile(target, bytes, { flag: 'wx', mode: 0o600 }).catch(error => { if (error.code !== 'EEXIST') throw error; });
-          if (await verified(target, file))}
-      const part = await safeFile(target + '.part');
-      if (part?.size > file.bytes) throw new Error('Invalid partial upload.');
-      // A completed but corrupted partial file must be retried from its start.
-      if (part?.size === file.bytes) { await unlink(target + '.part'); missing.push({ name: file.name, offset: 0 }); }
-      else missing.push({ name: file.name, offset: part?.size || 0 });
-    });
-  }
-  return { missing };
-}
-
-export async function paperFileChunk({ paperId, file, offset, data, workspace, library }, options) {
-  file = descriptor(file);
-  if (library && library.snapshot !== true && file.name.startsWith('original.')) throw new Error('Use library sync to update the original.');
-  if (typeof data !== 'string' || data.length > CHUNK_BYTES * 4 / 3 || data.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(data)) throw new Error('Invalid file chunk.');
-  const bytes = Buffer.from(data, 'base64');
-  if (bytes.toString('base64') !== data) throw new Error('Invalid file encoding.');
-  if (!Number.isSafeInteger(offset) || offset < 0 || !bytes.length || bytes.length > CHUNK_BYTES || offset + bytes.length > file.bytes) throw new Error('Invalid file offset.');
-  const folder = await directory({ paperId, workspace, library }, options); const target = await destination(folder, file, library, options);
-  return locked(target, async () => {
-    if (await verified(target, file)) return { offset: file.bytes, complete: true };
-    const partial = target + '.part'; const stat = await safeFile(partial);
-    if (offset > (stat?.size || 0)) throw new Error('File chunk arrived out of order.');
-    const handle = await open(partial, constants.O_RDWR | constants.O_CREAT | (constants.O_NOFOLLOW || 0), 0o600);
-    try {
-      const actual = await handle.stat(); if (!actual.isFile() || actual.nlink !== 1 || actual.size !== (stat?.size || 0)) throw new Error('Unsafe partial file.');
-      // Repeating a chunk after a dropped response is idempotent.
-      if (offset < actual.size) {
-        const prior = Buffer.alloc(bytes.length); const read = await handle.read(prior, 0, bytes.length, offset);
-        if (read.bytesRead !== bytes.length || !prior.equals(bytes)) throw new Error('Conflicting file chunk.');
-      } else {
-        for (let written = 0; written < bytes.length;) {
-handle.write(bytes, written, bytes.length - written, offset + written);
-          if (!result.bytesWritten) throw new Error('File write did not complete.'); written += result.bytesWritten;
-        }
+export function conversationTurns(snapshot) {
+  const result = [];
+  for (const turn of snapshot) {
+    let current;
+    for (const item of turn.items || []) {
+'activity') {
+        if (current && typeof item.id === 'string' && ['tool', 'thinking', 'status'].includes(item.kind) && typeof item.text === 'string') {
+          (current.activities ||= []).push({ id: item.id.slice(0, 300), kind: item.kind,
+            text: item.text.trim().slice(0, item.kind === 'thinking' ? 800 : 200),
+            ...(item.kind === 'tool' && typeof item.detail === 'string' && item.detail.trim()
+              ? { detail: item.detail.trim().slice(0, 1000) } : {}),
+            state: turn.status !== 'inProgress' && item.state === 'pending' ? 'complete'
+              : ['pending', 'complete', 'error'].includes(item.state) ? item.state : 'complete'tinue;
       }
-      await handle.sync();
-    } finally { await handle.close(); }
-    const size = (await safeFile(partial)).size;
-    if (size === file.bytes) {
-      if (!await verified(partial, file)) { await unlink(partial); throw new Error('File checksum mismatch.'); }
-      await rename(partial, target);
+      if (!['userMessage', 'agentMessage'].includes(item.type)) continue;
+      const text = item.type === 'userMessage' ? (item.content || []).filter(c => c.type === 'text').map(c => c.text || '').join('\n') : item.text;
+      if (!text?.trim()) continue;
+'userMessage' || !current) {
+        current = { id: `${turn.id}:${item.id}`, aliases: (item.aliases || []).map(id => `${turn.id}:${id}`),
+          ...(item.type === 'userMessage' ? displayQuestion(text) : { question: '' }), answer: '', state: 'complete' };
+        result.push(current);
+      }
+'agentMessage') current.answer += (current.answer ? '\n\n' : '') + text.trim();
     }
-    return { offset: size, complete: size === file.bytes };
-  });
-}
-ommitPaperFiles({ paperId, files, workspace, library }, options) {
-  files = manifest(files); const folder = await directory({ paperId, workspace, library }, options);
-  const paths = [];
-  for (const file of files) {
-    const target = await destination(folder, file, library, options); paths.push({ ...file, path: target });
-    // Empty original text files are valid; the client needs no upload chunks.
-    if (!file.bytes && file.sha256 === hash('')) { await writeFile(target, '', { flag: 'wx', mode: 0o600 }).catch(error => { if (error.code !== 'EEXIST') throw error; }); }
-    if (!await verified(target, file)) throw new Error('Paper files are incomplete.');
+    if (current) current.state = turn.status === 'inProgress' ? 'pending' : /failed|interrupted/.test(turn.status) ? 'error' : 'complete';
   }
-  const revision = hash(JSON.stringify(files));
-  const result = { revision, files: paths, index: path.join(folder, `${revision}${library?.snapshot === true ? '-snapshot' : ''}-manifest.json`) };
-  await writeFile(result.index, JSON.stringify(result, null, 2) + '\n', { flag: 'wx', mode: 0o600 }).catch(async error => {
-    if (error.code !== 'EEXIST') throw error;
-    if (!await safeFile(result.index) || await readFile(result.index, 'utf8') !== JSON.stringify(result, null, 2) + '\n') throw new Error('Invalid stored manifest.');
-  });
-  return result;
-}
-
-// Mounted after Terminal's authentication. Request JSON stays below its stock
-// 10 MiB limit; a PDF is sent in checksum-verified, resumable chunks.PaperFiles(router, options = {}) {
-  for (const [route, action] of [['status', paperFilesStatus], ['chunk', paperFileChunk], ['commit', commitPaperFiles]]) {
-    router.post(`/pageborne/files/${route}`  try { res.json(await action(req.body || {}, options)); }
-      catch {'Could not share this paper. Check the upload and desktop storage permissions.' }); }
-    });
+  // Match the reader's retained conversation budget, after removing passage
+  // wrappers. Older desktop history remains in the agent's own session.
+  const kept = []; let characters = 0;
+  for (const value of result.slice(-40).reverse()) {
+    const entry = { ...value, question: value.question.slice(0, 64000), answer: value.answer.slice(0, 16000) };
+    if (entry.activities) {
+      let size = 0;
+      entry.activities = entry.activities.slice(-24).reverse().filter(a => { size += a.text.length + (a.detail?.length || 0); return a.text && size <= 4000; }).reverse();
+      characters += entry.activities.reduce((n, a) => n + a.text.length + (a.detail?.length || 0), 0);
+    }
+    characters += entry.question.length + entry.answer.length;
+    if (characters > 100000) break;
+    kept.unshift(entry);
   }
+  return kept;
+}
+ConversationSync(router, getProvider) {
+  router.get('/pageborne/conversation'typeof id !== 'string' || !id || id.length > 200) return'Missing or invalid session ID.' });
+    try {
+  q.query.provider, id);
+      if (!conversationCapabilities(provider).conversationSync) return'Conversation sync unavailable.' });
+      const turns = conversationTurns(await provider.getConversation(id));
+      res.json({ version: 1, sessionId: id, turns, state: provider.getStatus(id)?.state || 'idle' });
+    } catch (error) { res.status(error.statusCode || 502).json({ error: 'Could not load the shared conversation.' }); }
+  });
 }

@@ -1,63 +1,87 @@
-// Explicit, opt-in check: sends a small prompt in a temporary Codex conversation.
-import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { once } from 'node:events';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
-'node:crypto''../dist/codex/app-server.js';
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const until = async (fn, timeout = 60000) => {
-    const end = Date.now() + timeout;
-    while (Date.now() < end) { if (fn()) return; await sleep(50); }
-    throw new Error('Timed out waiting for the live Codex response');
-};
-const owner);
-const state = await mkdtemp(join(tmpdir(), 'even-live-smoke-'));
-const token = randomBytes(24).toString('hex');
-let child, thread, abort;
-try {
-    thread = await owner.threadStart({ cwd: process.cwd(), sandbox: 'read-only', approvalPolicy: 'never' });
-    const id = thread.id;
-    await owner.call('thread/name/set', { threadId: id, name: 'Even Terminal connectivity test' });
-    child = spawn(process.execPath, ['bin/cli.js', '--host', '127.0.0.1', '--port', '0', '--no-qr'], {
-        env: { ...process.env, EVEN_TERMINAL_STATE_DIR: state, BRIDGE_TOKEN: token }, stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    let logs = '';
-    child.stdout.on('data', b => logs += b); child.stderr.on('data', b => logs += b);
-    await until(() => logs.includes('[server] listening'), 10000);
-    const base = logs.match(/\[server\] listening (http:\/\/[^\s]+)/)[1];
-    const headers = { Authorization: `Bearer ${token}` };
-    abortstream = await fetch(`${base}/api/events?provider=codex&sessionId=${id}`, { headers, signal: abort.signal });
-    assert.equal(stream.status, 200, await (stream.status === 200 ? '' : stream.text()));
-    const reader = stream.body.getReader();
-    const events = [];
-    const readinglet buffered = ''while (true{ done, value } = await reader.read(); if (done)buffered += new TextDecoder().decode(valueframes = buffered.split('\n\n'); buffered = frames.pop(frame of framesdata = frame.split('\n').find(l => l.startsWith('data: ')data) events.push(JSON.parse(data.slice(6)) catch (e) { if (!abort.signal.aborted) throw e; }
-    })();
-    const input = 'Connectivity test for the Even glasses bridge. Reply with exactly EVEN_SHARED_OK. Do not use tools.';
-`${base}/api/prompt`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: 'codex', sessionId: id, text: input }) });
-    assert.equal(response.status, 202, JSON.stringify(await response.json()));
-    await until(() => events.some(e => e.type === 'result'));
-    const result = events.find(e => e.type === 'result');
-    assert.equal(result.success, true, result.text);
-    assert.match(result.text, /EVEN_SHARED_OK/);
-    assert.ok(events.some(e => e.type === 'text_delta' && e.text));
-    // A second independent client sees the exact conversation updated by HTTP.
-owner.threadTurnsList({ threadId: id, limit: 2, itemsView: 'full' });
-    const items = history.data.flatMap(t => t.items);
-    assert.ok(items.some(i => i.type === 'userMessage' && i.content.some(c => c.text === input)));
-    assert.ok(items.some(i => i.type === 'agentMessage' && i.text.includes('EVEN_SHARED_OK')));
-    console.log(JSON.stringify({ passed: true, sharedThreadId: id, inputViaHttp: true, outputViaSse: true, verifiedBySecondClient: true, eventTypes: [...new Set(events.map(e => e.type))] }));
-    abort.abort(); await reading;
-} finally {
-    abort?.abort();
-    if (child) { const exited = once(child, 'exit'); child.kill('SIGTERM'); await Promise.race([exited, sleep(4000)]); if (child.exitCode == null) child.kill('SIGKILL'); }
-    if (thread) {
-wait owner.threadRead(thread.id).catch(() => null);
-        if (current?.status.type !== 'active') await owner.call('thread/archive', { threadId: thread.id }).catch(() => {});
-        await owner.id).catch(() => {});
+// Read-only bridge probe. Run from the desktop when the agent's sandbox cannot
+// reach localhost. Records response metadata, never tokens or conversation text.writeFileSync, mkdirSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path''node:url';
+import { randomUUID } from 'node:crypto';
+
+const root = resolve(, '..');
+const stateDirSTATE_DIR || join(root, '.state');
+const pairinjoin(stateDir, 'pairing.json'), 'utf8'));
+if (!Number.isInteger(pairing.port) || pairing.port < 1 || pairing.port > 65535) throw new Error('Invalid bridge port');
+const base = `http://127.0.0.1:${pairing.port}`;
+const report = { time base, checks: [] };
+const headers = { Authorization: `Bearer ${pairing.token}` };
+const redact = value => String(value || '').replaceAll(pairing.token, '[redacted]').slice(0, 300);
+const label = process.argv[2] || 'library';
+
+async function request(name, path) {
+    const startcheck = { name };
+    report.checks.push(checkres = await fetch(`${base}${path}`, { headers, redirect: 'error', signal: AbortSignal.timeout(15000) });
+        check.httpStatus = res.status;
+        check.contentType = res.headers.get('content-type');
+        const text = await res.text();
+        check.responseBytes = Buffer.byteLength(text);
+        let body;
+        try { body = JSON.parse(text); }
+        catch { check.error = 'Response was not JSON'; return; }
+        if (body.error) check.error = redact(typeof body.error === 'string' ? body.error : body.error.message);
+        if (typeof body.state === 'string') check.state = body.state;
+        if (typeof body.provider === 'string') check.provider = body.provider;
+        return body;
+    } catch (error) {
+        check.error = redact(error.message);
+        if (error.cause?.code) check.cause = error.cause.code;
+    } finally { check.elapsedMs = Date.now() - start; }
+}
+
+async function streamheck = { name: 'claude-events', events: [], endedByServer: false };
+    report.checks.push(check);3500);
+    let readersessionId, provider: 'claude' });
+        const res = await fetch(`${base}/api/events?${params}`, { headers, redirect: 'error' });
+        check.httpStatus = res.status;
+        check.contentType = res.headers.get('content-type');
+        if (!res.ok) {
+            const body = await res.json().catch(() => null);
+            check.error = redact(body?.error || 'Stream request failed'reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (check.events.length < 20done, value } = await reader.read();
+            if (done) { check.endedByServer = true; break; }
+            buffer += decoder.decode(value, { stream: truframes = buffer.split('\n\n'); buffer = frames.pop(frame of frames) {frame.split('\n'!line.startsWith('data: '))    const event = JSON.parse(line.slice(6)check.events.push({ type: event.type, state: event.state, provider: event.providertextChars: typeof event.text === 'string' ? event.text.length                error: event.type === 'error' ? redact(event.message) : undefined} catch { check.invalidJson = true;}
+        }
+    } catch (error) {
+        if (controller.signal.aborted) check.observationWindowCompleted = true;
+        else check.error = redact(error.message);
+    }    controller.abort();
+        await reader?.cancel().catch(() => {});
     }
-    await owner.close();
-    await rm(state, { recursive: true, force: true });
+}
+
+try {
+    const info = await request('default-provider', '/api/info');
+    if (info) report.defaultProvider = infoult = await request('claude-sessions', '/api/sessions?provider=claude&limit=100');
+    const sessions = result?.sessions || [];
+    report.listedSessions = sessions.length;
+    const matches = sessions.filter(session => session.id === label || String(session.title).toLowerCase() === label.toLowerCase());
+    if (matches.length !== 1) throw new Error(`Expected one session matching the supplied name/ID; found ${matches.length}. Use the exact session UUID if necessary.`);
+    const session = matches[0];
+    report.sessionId = session.id;
+    report.listingProvider = session.providerprovider: 'claude', sessionId: session.id });
+    await request('claude-status', `/api/status?${params}`);
+request('claude-history', `/api/sessions/${encodeURIComponent(session.id)}/history?provider=claude`);
+    if (history?.history) report.history = history.history.map(item => ({ role: item.role,
+        chars: typeof item.text === 'string' ? item.text.length : null,
+        bytes: typeof item.text === 'string' ? Buffer.byteLength(item.text) : null,
+        internalTaskReport: typeof item.text === 'string' && /^\s*<task-notification>/.test(item.text) }));
+    await stream(session.id);
+    // These reads show whether omission of the provider would select a
+    // different backend. No prompt, resume-through-SDK, or approval is sent.
+    await request('status-without-provider', `/api/status?${new URLSearchParams({ sessionId: session.id })}`);
+    await request('history-without-provider', `/api/sessions/${encodeURIComponent(session.id)}/history`);
+} catch (error) {
+    report.error = redact(error.message);
+    process.exitCode = 1;
+} finally {
+    mkdirSync(stateDir, { recursive: true, mode: 0o700 })stateDir, `claude-diagnostic-${randomUUID()}.json`report, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
+    console.log(`Diagnostic saved: ${path}`);
+    console.log(JSON.stringify(report, null, 2));
 }

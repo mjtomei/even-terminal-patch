@@ -1,13 +1,16 @@
-import { createHash{ mkdirSync, readFileSync, renameimport { summarizeCodexItem
+import { createHash{ mkdirSync, readFileSync, renameimport { summarizeCodexItemcommandDetail } from "../pageborne-activity.js";
+
 const toolTypes = new Set(['commandExecution', 'fileChange', 'mcpToolCall', 'dynamicToolCall',
     'webSearch', 'imageView', 'imageGeneration', 'collabAgentToolCall']);
 function displayItem(item) {
     if (item.type !== 'reasoning' && !toolTypes.has(item.type)) return item;
-    // Only the provider's display summaries are retained. Never expose raw
-    // reasoning content, encrypted payloads, tool input/output or signatures.
+    // Keep display summaries and bounded shell command detail. Never expose
+    // reasoning content, encrypted payloads, arbitrary tool input/output or signatures.
     const summary = Array.isArray(item.summary) ? item.summary.map(part => typeof part === 'string' ? part : part?.text || '').join('\n') : '';
+    const detail = item.type === 'commandExecution' ? commandDetail('Shell', item.command) : undefined;
     return { id: item.id, type: 'activity', kind: item.type === 'reasoning' ? 'thinking' : 'tool',
         text: item.type === 'reasoning' ? (summary || 'Thinking…').slice(0, 800) .slice(0, 200),
+        ...(detail ? { detail } : {}),
         state: /failed|error|declined/.test(item.status || '') ? 'error'
             : item.complete || /completed|done/.test(item.status || '') ? 'complete' : 'pending',
         complete: item.complete };
@@ -44,7 +47,9 @@ s.push(turnif (!Number.isFinite(turn.startedAt) && Number.isFinite(incoming.star
                 // text occurrences within this turn, preserving repeated input.
                 if (!saved) saved = turn.items.find(i => !matched.has(i) && i.type === item.type
                     && (synthetic(item.id) || synthetic(i.id)) && text && i.&& (text.startsWith(i.text) || i.text.startsWith(text))aved && saved.id !== item.id && !saved.aliases?.includes(item.idaved.aliases = [...(saved.aliases || []), synthetic(item.id) ? item.id : saved.id!synthetic(item.id)) saved.id = item.id!savedaved = { id: item.id, type: item.type, text }successor = items.slice(index + 1).find(i => turn.items.some(s => s.id === i.id))predecessor = items.slice(0, index).reverse().find(i => turn.items.some(s => s.id === i.id))position = successor ? turn.items.findIndex(i => i.id === successor    : predecessor ? turn.items.findIndex(i => i.id === predecessor.id) + 1 : turn.items.length;.items.splice(position, 0, saved);
-                } else if (live || (!saved.complete && text.startsWith(saved.text)!(item.kind === 'thinking' && text === 'Thinking…' && saved.text)) saved.text = texmatched.add(saveitem.type === 'activity' && (live || !saved.state || saved.state === 'pending'aved.kind = item.kind; saved.state = item.stateitem.complete) saved.complete = trconst recentActivity = new Set(turn.items.filter(i => i.type === 'activity').slice(-24));
+                } else if (live || (!saved.complete && text.startsWith(saved.text)!(item.kind === 'thinking' && text === 'Thinking…' && saved.text)) saved.text = texmatched.add(saved);
+                // Backfill detail even for completed summaries, but never erase
+                // it when a completion notification omits the original command..type === 'activity' && item.kind === 'tool' && item.detail) saved.detail = item.detail.type === 'activity' && (live || !saved.state || saved.state === 'pending'aved.kind = item.kind; saved.state = item.stateitem.complete) saved.complete = trconst recentActivity = new Set(turn.items.filter(i => i.type === 'activity').slice(-24));
             turn.items = turn.items.filter(i => i.type !== 'activity' || recentActivity.has(iturns.sort((a, b) => a.startedAt - b.startedAt);
         this.turns = this.turns.slice(-80);
         this.scheduleSave();

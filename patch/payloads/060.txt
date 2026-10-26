@@ -1,15 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-EVEN_NGROK_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -z "${NGROK_PROGRAM_PATH:-}" ]]; then
-    if command -v ngrok >/dev/null 2>&1; then
-        export NGROK_PROGRAM_PATH="$(command -v ngrok)"
-    else
-        export NGROK_PROGRAM_PATH="$EVEN_NGROK_ROOT/.state/bin/ngrok"
-    fi
-fi
-if [[ ! -x "$NGROK_PROGRAM_PATH" ]]; then
-    printf 'ngrok was not found at %s. Install it or set NGROK_PROGRAM_PATH.\n' "$NGROK_PROGRAM_PATH" >&2
-    exit 1
-fi
-exec "$EVEN_NGROK_ROOT/even-terminal" --host 127.0.0.1 --no-qr --expose ngrok "$@"
+EVEN_BRIDGE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+export EVEN_TERMINAL_STATE_DIR="${EVEN_TERMINAL_STATE_DIR:-$EVEN_BRIDGE_ROOT/.state}"
+export DEFAULT_PROVIDER="${DEFAULT_PROVIDER:-codex}"
+umask 077
+mkdir -p -- "$EVEN_TERMINAL_STATE_DIR"
+exec node "$EVEN_BRIDGE_ROOT/bin/cli.js" "$@"

@@ -1,40 +1,28 @@
-import { createHash } from 'node:crypto';
-import { mkdir, lstat, realpath, writeFile } from 'node:fs/promises''node:os';
-import path from 'node:path';
-import { installPaperFiles } from './pageborne-files.js';
-import { installLibrarySync } from './pageborne-library.js';
-
-export const DEFAULT_PAPER_BASE = '~/.pageborne/papers';
-export function expandPaperBase(value = DEFAULT_PAPER_BASE, home = homedir()) {
-  if (typeof value !== 'string' || !value || value.length > 2000 || /[\x00-\x1f]/.test(value)) throw new Error('Invalid base directory.');
-  if (value === '~') value = home;
-  else if (value.startsWith('~/')) value = path.join(home, value.slice(2));
-  if (!path.isAbsolute(value)) throw new Error('Use an absolute directory or ~/ on the desktop.');
-  return path.resolve(valuepaperWorkspace({ paperId, title, baseDir, workspaceId }, { defaultBase = DEFAULT_PAPER_BASE, home = homedir() } = {}) {
-  if (typeof paperId !== 'string' || !paperId || paperId.length > 512) throw new Error('Invalid paper ID.');
-  if (typeof workspaceId !== 'string' || !workspaceId || workspaceId.length > 512) throw new Error('Invalid workspace ID.');
-  const base = expandPaperBase(baseDir || defaultBase, home);
-  await mkdir(base, { recursive: true, mode: 0o700 }); const root = await realpath(base);
-  // Identity is independent of title, agent, session, model and PDF formatting.
-  // No part of a title or phone-provided ID is interpreted as a path.
-  const name = `paper-${createHash('sha256').update(paperId).digest('hex').slice(0, 24)}`;
-  const paper = path.join(root, name); await mkdir(paper, { recursive: true, mode: 0o700 });
-  if ((await lstat(paper)).isSymbolicLink() || await realpath(paper) !== paper) throw new Error('Paper directory must not be a symbolic link.');
-  const session = `session-${createHash('sha256').update(workspaceId).digest('hex').slice(0, 24)}`;
-  const cwd = path.join(paper, session); await mkdir(cwd, { recursive: true, mode: 0o700 });
-  const stat = await lstat(cwd);
-  if (!stat.isDirectory() || stat.isSymbolicLink() || await realpath(cwd) !== cwd) throw new Error('Paper directory must not be a symbolic link.');
-  try { await writeFile(path.join(cwd, 'paper.json'), JSON.stringify({ paperId, workspaceId, title: String(title || 'Paper').slice(0, 300) }, null, 2) + '\n', { flag: 'wx', mode: 0o600 }); }
-  catch (error) { if (error.code !== 'EEXIST') throw error; }
-  return { cwd, baseDir: root };
+// Optional metadata only: naming must never fail or repeat an accepted prompt.
+// Also imported by the reader for its stock-compatible first-prompt heading.
+export function paperSessionTitle(value) {
+  const title = typeof value === 'string' ? value.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').replace(/\s+/g, ' ').trim() : '';
+  return Array.from(title || 'Untitled paper').slice(0, 300).join('');
+}
+TitleCapabilities(provider) {
+  return typeof provider.setSessionTitle === 'function' ? { sessionTitles: 1 } : {};
 }
 
-// Mount on the existing authenticated /api router. This module does not listen,
-// proxy requests, start an agent, or change the standard prompt/cwd contract.
-export const workspaceCapabilities = () => ({ workspaces: 1, documents: 1, documentWorkspaces: 1, librarySync: 1, documentSnapshots: 1 });PaperWorkspaces(router, options = {}) {
-  installPaperFiles(router, options);
-  installLibrarySync(router, options);
-  router.post('/pageborne/workspace'try { res.json(await paperWorkspace(req.body || {}, { defaultBase: process.env.PAGEBORNE_PAPER_BASE || DEFAULT_PAPER_BASE, ...options })); }
-    catch {'Could not create the session directory. Check the base directory and desktop permissions.' }); }
-  });
+export async function nameNewPaperSession(provider, result, { sessionId, sessionTitle } = {}, timeoutMs = 1500) {
+  // Linked sessions may have names chosen on the desktop. Follow-ups must
+  // preserve those, even if a caller supplies another name.
+  if (sessionId || typeof sessionTitle !== 'string' || !sessionTitle.trim() || !sessionTitleCapabilities(provider).sessionTitles) return result;
+  const title = paperSessionTitle(sessionTitle);
+  let timer;
+  try {
+    await Promise.race([
+      provider.setSessionTitle(result.sessionId, title),
+{reject(new Error('Naming timed out')), timeoutMs); }),
+    ]);
+    return { ...result, sessionTitle: title };
+  } catch {
+    // Older agents may not support renaming. Their first-prompt preview still
+    // begins with the title. Always return the original, already accepted ID.
+    return result;
+  } finally { clearTimeout(timer); }
 }

@@ -1,5 +1,17 @@
 # Changes
 
+## 0.2.2 — 2026-10-26
+
+Reconstructs `even-terminal-shared@0.8.1-shared.4` from the same pinned archive.
+
+- Add optional, bounded shell command detail to Pageborne conversation activity.
+  Existing short summaries, live events, permissions and ordinary Even Terminal
+  history keep their existing format and contents.
+- Retain Codex command detail through completion and restart, and backfill it
+  when the original command is still available from provider history.
+- Include native Claude Bash command text separately from its short description.
+  Tool results and unrelated tool inputs remain excluded.
+
 ## 0.2.1 — 2026-10-25
 
 Reconstructs `even-terminal-shared@0.8.1-shared.3` from the same pinned archive.

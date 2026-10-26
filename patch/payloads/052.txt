@@ -1,1 +1,2 @@
-STATE_DIR ||-shared")
+bindHost = process.env.EVEN_BIND_HOST;
+    const host = bindHost && bindHost !== "0.0.0.0" ? { label: "Host", address: bindHost } :

@@ -1,28 +1,95 @@
-// Optional metadata only: naming must never fail or repeat an accepted prompt.
-// Also imported by the reader for its stock-compatible first-prompt heading.
-export function paperSessionTitle(value) {
-  const title = typeof value === 'string' ? value.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').replace(/\s+/g, ' ').trim() : '';
-  return Array.from(title || 'Untitled paper').slice(0, 300).join('');
-}
-TitleCapabilities(provider) {
-  return typeof provider.setSessionTitle === 'function' ? { sessionTitles: 1 } : {};
-}
+import { randomUUID } from 'node:crypto';
+import { mkdir, readFile, writeFile, rename, lstat } from 'node:fs/promises''node:os';
+import path from 'node:path';
+import { libraryIdentity } from './pageborne-library.js';
 
-export async function nameNewPaperSession(provider, result, { sessionId, sessionTitle } = {}, timeoutMs = 1500) {
-  // Linked sessions may have names chosen on the desktop. Follow-ups must
-  // preserve those, even if a caller supplies another name.
-  if (sessionId || typeof sessionTitle !== 'string' || !sessionTitle.trim() || !sessionTitleCapabilities(provider).sessionTitles) return result;
-  const title = paperSessionTitle(sessionTitle);
-  let timer;
-  try {
-    await Promise.race([
-      provider.setSessionTitle(result.sessionId, title),
-{reject(new Error('Naming timed out')), timeoutMs); }),
-    ]);
-    return { ...result, sessionTitle: title };
-  } catch {
-    // Older agents may not support renaming. Their first-prompt preview still
-    // begins with the title. Always return the original, already accepted ID.
-    return result;
-  } finally { clearTimeout(timer); }
+const queues = new Map();
+const validName = value => value === null || typeof value === 'string' && value.length <= 220
+  && !/[\x00-\x1f/\\]/.test(value) && /\.(md|markdown|txt|pdf)$/i.test(value);
+const text = (value, max = 300) => typeof value === 'string' && value.length <= max && !/[\x00-\x1f]/.test(value);
+const fail = message => {message), { status: 400 }); };
+async function regular(file) {
+  try { const stat = await lstat(file); if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4_000_000) fail('Invalid reader state file.'); }
+  catch (error) { if (error.code !== 'ENOENT') throw error;readerInstanceId(stateDir) {
+  await mkdir(stateDir, { recursive: true, mode: 0o700 });
+  const file = path.join(stateDir, 'pageborne-instance.json');
+  try { await writeFile(file, JSON.stringify({ id: randomUUID() }), { flag: 'wx', mode: 0o600 }); }
+  catch (error) { if (error.code !== 'EEXIST') throw error; }
+  await regular(file);
+  const { id } = JSON.parse(await readFile(file, 'utf8'));
+  if (!/^[a-f0-9-]{36}$/.test(id)) fail('Invalid Terminal instance identity.');
+createReaderState({ libraryDir = process.env.PAGEBORNE_LIBRARY_DIR || path.join(homedir(), '.pageborne/library'),
+  stateDirSTATE_DIR || path.join(homedir(), '.even-terminal'), instanceId } = {}) {
+  let locating;
+  function file() { return locating ||= locate().catch(error => { locating = null; throw error; }); }
+  async function locate() {
+    const id = instanceId || await readerInstanceId(stateDir);
+    if (!/^[a-f0-9-]{36}$/.test(id)) fail('Invalid Terminal instance identity.');
+    const root = libraryDir.startsWith('~/') ? path.join(homedir(), libraryDir.slice(2)) : libraryDir;
+    const libraryId = await libraryIdentity({ libraryDir });
+    const folder = path.join(root, '.pageborne', 'reader-state');
+    await mkdir(folder, { recursive: true, mode: 0o700 })[root, path.join(root, '.pageborne'), folder]) {
+      const stat = await lstat(dir); if (!stat.isDirectory() || stat.isSymbolicLink()) fail('Invalid library directory.');
+    }
+    return { id, libraryId, path: path.join(folder, `${id}.json`) };
+  }
+  async function read() {
+    const loc = await file(); await regular(loc.path);
+    try {
+      const saved = JSON.parse(await readFile(loc.path, 'utf8'));
+      if (saved.version !== 1 || saved.instanceId !== loc.id || !Array.isArray(saved.records)) fail('Invalid reader state.');
+      return { ...saved, libraryId: loc.libraryId };
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      return { version: 1, instanceId: loc.id, libraryId: loc.libraryId, records: [] };
+    }
+  }
+  async function update(input) {
+    if (!validName(input?.document) || !['claude', 'codex'].includes(input.agent)
+      || !text(input.sessionId) || !input.sessionId || (input.cwd != null && !text(input.cwd, 4000))
+      || !Array.isArray(input.anchors) || input.anchors.length > 40) fail('Invalid conversation link.');
+    const anchors = input.anchors.map(a => {
+      if (!text(a?.id) || !a.id || !Array.isArray(a.aliases) || a.aliases.length > 20 || a.aliases.some(v => !text(v))
+        || a.position == null || !Number.isFinite(a.position) || a.position < 0 || a.position > 100
+        || a.page != null && (!Number.isInteger(a.page) || a.page < 1 || a.page > 100000)) fail('Invalid question location.');
+      return { id: a.id, aliases: a.aliases, position: a.position, ...(a.page ? { page: a.page } : {}) };
+    });
+    const loc = await file(queues.get(loc.path) || Promise.resolve()).catch(() => {}).then(async () => {
+      const saved = await read();
+      let record = saved.records.find(r => r.document === input.document && r.agent === input.agent);
+      if (!record) {
+        if (saved.records.length >= 2000) fail('Too many saved document links.');
+        saved.records.push(record = { document: input.document, agent: input.agent, primary: input.sessionId, sessions: [] });
+      }
+      let session = record.sessions.find(s => s.id === input.sessionId);
+if (record.sessions.length >= 100) fail('Too many saved conversations for this document.');
+        record.sessions.push(session = { id: input.sessionId, anchors: [] });
+      }
+      if (input.cwd) session.cwd = input.cwd;
+      // Keep old sessions and merge by stable remote identity. An older device
+      // cannot remove another device's questions by publishing a shorter cache.
+      for (const anchor of anchors) {
+        const identities = new Set([anchor.id, ...anchor.aliases]);
+        const prior = session.anchors.find(a => [a.id, ...a.aliases].some(id => identities.has(id)));
+        if (prior) { prior.aliases = [...new Set([...prior.aliases, ...identities])].slice(-20); }
+        else session.anchors.push(anchor);
+      }
+      session.anchors = session.anchors.slice(-200);
+      session  const temp = `${loc.path}.${randomUUID()}.tmp`;
+      const serialized = JSON.stringify(saved);
+      if (Buffer.byteLength(serialized) > 4_000_000) fail('Reader metadata storage is full.');
+      await writeFile(temp, serialized, { flag: 'wx', mode: 0o600 }); await rename(temp, loc.path);
+      return saved;
+    });
+    queues.set(loc.path, pending);
+    try { return await pending; } finally { if (queues.get(loc.path) === pending) queues.delete(loc.path); }
+  }
+  return { read, update };
+}ReaderState(router, options = {}) {
+  const store = createReaderState(options);
+  router.get('/pageborne/reader-state' res.json(await store.read()); } catch {'Could not read library conversation links.' }); }
+  });
+  router.post('/pageborne/reader-state'try { res.json(await store.update(req.body)); }
+    catch (error) { res.status(error.status || 500).json({ error: error.status ? error.message : 'Could not save library conversation links.' }); }
+  });
 }
