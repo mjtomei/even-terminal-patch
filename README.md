@@ -5,10 +5,10 @@ attachment to an existing Codex daemon and an experimental connector to normally
 launched Claude sessions with native Remote Control. Your terminal and native
 phone connection keep their existing agent owner; the glasses use the Even app.
 
-Release **0.2.3** adds durable library addition dates and file modification dates
-for Pageborne's recency sorting. Dates survive atomic file replacement, and old
-clients can ignore the optional metadata. Pairing, chats and the existing Even
-Terminal glasses app keep their behavior.
+Release **0.2.4** adds an optional authenticated endpoint for completed Pageborne
+PDF preparations from the desktop OCR daemon. Old clients ignore it; pairing,
+chat sessions and the existing Even Terminal glasses app retain their behavior.
+The daemon and configuration instructions live in the [Pageborne repository](https://github.com/mjtomei/pageborne/tree/main/desktop/ocr).
 
 This repository contains a patch applicator, numeric COPY recipes and added
 material. Upstream implementation files and reconstructed installations are not

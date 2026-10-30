@@ -1,5 +1,18 @@
 # Patch reviews
 
+## 0.2.4 — 2026-10-30
+
+Adds optional, authenticated retrieval of complete desktop OCR preparations.
+Source hashes, reading settings, artifact identities and chunk checksums are
+validated; pending results remain private. Existing pairing and session paths
+are unchanged.
+
+- Reconstructed installation: 84 files, version `0.8.1-shared.6`.
+- COPY bytes: 175243; INSERT bytes: 358763.
+- Manifest SHA-256: `ecba5b809f7c785465f328f895915cae6d1bca28832707a7438250186afec5f4`.
+- Exact referenced-payload match audit: passed at 24 bytes.
+- Validation: 83 bridge tests and 17 patch-tool tests passed.
+
 ## 0.2.3 — 2026-10-26
 
 Reviewed optional library date metadata, stable addition dates across atomic

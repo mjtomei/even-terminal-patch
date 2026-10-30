@@ -1,3 +1,9 @@
+# 0.2.4 — 2026-10-30
+
+- Serve completed desktop OCR preparations through the existing authenticated library API.
+- Verify source identity, preparation version, settings and chunk checksums; keep pending jobs private.
+- Preserve existing library, pairing, session and glasses interfaces.
+
 # Changes
 
 ## 0.2.3 — 2026-10-26
