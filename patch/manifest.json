@@ -346,8 +346,8 @@
     },
     {
       "path": "payloads/047.txt",
-      "size": 18525,
-      "sha256": "9a4a05110c962bbb1006b3e227ad759d9881371a553e361f517e0338746ccd2f"
+      "size": 20467,
+      "sha256": "eccecb07a083b6a127496eafd863582d33530eccb00fd3743b6a7df8e790deb0"
     },
     {
       "path": "payloads/048.txt",
@@ -407,12 +407,12 @@
     {
       "path": "payloads/062.txt",
       "size": 51583,
-      "sha256": "9457ad0d261851b396dd1f961e1d96387ab6323a18b882983f175e4c3613df02"
+      "sha256": "6f5804f0213eb2243e25685750b5827cbe1ee5b13530c98b16a83f2d3f7e2b8c"
     },
     {
       "path": "payloads/063.txt",
       "size": 541,
-      "sha256": "3893de29cdd1cc0e6dcbe8af42363c314d9e5eac066f7a676f34288e83f003a5"
+      "sha256": "11e819573482894571bfcdc8e93e66691f38d9dc533e967bdda4a1e570651f1f"
     },
     {
       "path": "payloads/064.txt",
@@ -476,8 +476,8 @@
     },
     {
       "path": "payloads/076.txt",
-      "size": 2076,
-      "sha256": "7c1cd72b7a9254e0861f5c6faabb797ea01bb3a0ebbcb45a877effa435eb5f54"
+      "size": 2347,
+      "sha256": "a655011694bc8cf9fa187ab0ac0d321f1eeb4019246f35351e7d4a65ad4e4c2f"
     },
     {
       "path": "payloads/077.txt",
@@ -12576,8 +12576,8 @@
     },
     {
       "path": "dist/routes/pageborne-library.js",
-      "size": 19173,
-      "sha256": "50361496c3fce4b52c42a25f6bb1f76490dc7ca7a4b899c3c056bd5ff23f3341",
+      "size": 21088,
+      "sha256": "e381eba26bb538e52d276490d391878bcaef45c772d8ba2dd6a64c7cb50c801a",
       "mode": 420,
       "ops": [
         [
@@ -12788,31 +12788,19 @@
           "insert",
           36,
           14935,
-          887
+          3359
         ],
         [
           "copy",
-          24,
-          5420,
-          26
+          28,
+          1557,
+          27
         ],
         [
           "insert",
           36,
-          15822,
-          1218
-        ],
-        [
-          "copy",
-          4,
-          742,
-          28
-        ],
-        [
-          "insert",
-          36,
-          17040,
-          805
+          18294,
+          1493
         ],
         [
           "copy",
@@ -12823,7 +12811,7 @@
         [
           "insert",
           36,
-          17845,
+          19787,
           69
         ],
         [
@@ -12835,7 +12823,7 @@
         [
           "insert",
           36,
-          17914,
+          19856,
           87
         ],
         [
@@ -12847,7 +12835,7 @@
         [
           "insert",
           36,
-          18001,
+          19943,
           73
         ],
         [
@@ -12859,7 +12847,7 @@
         [
           "insert",
           36,
-          18074,
+          20016,
           206
         ],
         [
@@ -12871,7 +12859,7 @@
         [
           "insert",
           36,
-          18280,
+          20222,
           245
         ]
       ]
@@ -13435,7 +13423,7 @@
     {
       "path": "package-lock.json",
       "size": 57206,
-      "sha256": "97393a2e43c4fc12401d2429a8746e3c90699839eafc158a5052adb0eeb4debd",
+      "sha256": "15305d148a329c8e3aef409582778260565de85a5d3f7046dfe4d3a291d0d10e",
       "mode": 420,
       "ops": [
         [
@@ -15891,7 +15879,7 @@
     {
       "path": "package.json",
       "size": 852,
-      "sha256": "75ce8cc3be1927b412420dcc8d64a500b1db5089ddd37ff35b222e093a45bf98",
+      "sha256": "53a92b36a7d5a94236e9101c22fe438c4f19939b36994cf911e933a9c34ffb8a",
       "mode": 420,
       "ops": [
         [
@@ -17764,15 +17752,15 @@
     },
     {
       "path": "test/pageborne-ocr.test.js",
-      "size": 2076,
-      "sha256": "7c1cd72b7a9254e0861f5c6faabb797ea01bb3a0ebbcb45a877effa435eb5f54",
+      "size": 2347,
+      "sha256": "a655011694bc8cf9fa187ab0ac0d321f1eeb4019246f35351e7d4a65ad4e4c2f",
       "mode": 420,
       "ops": [
         [
           "insert",
           62,
           0,
-          2076
+          2347
         ]
       ]
     },

@@ -1,6 +1,6 @@
 {
   "name": "even-terminal-shared",
-  "version": "0.8.1-shared.6Shared Codex sessions and experimental native Claude Remote Control for Even Terminal",
+  "version": "0.8.1-shared.7Shared Codex sessions and experimental native Claude Remote Control for Even Terminal",
     "dist/",
     "scripts/",
     "test/",

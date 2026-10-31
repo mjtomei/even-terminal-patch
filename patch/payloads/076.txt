@@ -17,11 +17,14 @@ test('optional OCR serves only complete matching preparations and leaves origina
  await mkdir(path.join(root,engine,'prepared'),{recursive:true});await mkdir(path.join(root,'requests'));
  await writeFile(path.join(root,'daemon.json'),JSON.stringify({engine,preparationVersion:17,pdfjs:'6.3.289',heartbeat:Date.now()}));
  assert.equal((await libraryPreparation({name,key},options)).state,'pending');
- const artifact=JSON.stringify({key,engine,saved:{version:17,layout:{}}});
+ const artifact=JSON.stringify({key,engine,saved:{version:17,layout:{text:"Book text. ".repeat(1_700_000)}}});
  await writeFile(path.join(root,engine,'prepared',hash(key)+'.json'),artifact);
  const ready=await libraryPreparation({name,key},options);assert.equal(ready.state,'ready');
  const chunk=await libraryPreparation({name,key,offset:0,sha256:ready.sha256},options);
- assert.equal(Buffer.from(chunk.data,'base64').toString(),artifact);
+ assert.ok(ready.bytes > 16*1024*1024);
+ assert.equal(Buffer.from(chunk.data,'base64').toString(),artifact.slice(0,768*1024));
+ const end=await libraryPreparation({name,key,offset:ready.bytes-10,sha256:ready.sha256},options);
+ assert.equal(Buffer.from(end.data,'base64').toString(),artifact.slice(-10));
  await assert.rejects(libraryPreparation({name,key,offset:0,sha256:'b'.repeat(64)},options));
  await writeFile(path.join(libraryDir,name),'%PDF-changed');
  await assert.rejects(libraryPreparation({name,key},options),/changed/i);

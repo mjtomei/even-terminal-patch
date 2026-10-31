@@ -1,11 +1,11 @@
 {
   "baseline_version": "0.8.1",
   "output_files": 84,
-  "copy_bytes": 175243,
-  "insert_bytes": 358763,
+  "copy_bytes": 175216,
+  "insert_bytes": 360976,
   "operation_counts": {
-    "insert": 1405,
-    "copy": 1533
+    "insert": 1404,
+    "copy": 1532
   },
   "literal_exact_match_check_bytes": 24,
   "literal_exact_match_check": "passed",
@@ -248,8 +248,8 @@
     },
     {
       "path": "dist/routes/pageborne-library.js",
-      "copy_bytes": 648,
-      "insert_bytes": 18525
+      "copy_bytes": 621,
+      "insert_bytes": 20467
     },
     {
       "path": "dist/routes/pageborne-reader-state.js",
@@ -394,7 +394,7 @@
     {
       "path": "test/pageborne-ocr.test.js",
       "copy_bytes": 0,
-      "insert_bytes": 2076
+      "insert_bytes": 2347
     },
     {
       "path": "test/pageborne-reader-state.test.js",

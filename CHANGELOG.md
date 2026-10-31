@@ -1,5 +1,11 @@
 # 0.2.4 — 2026-10-30
 
+## 0.2.5 — 2026-10-30
+
+- Allow completed desktop OCR preparations larger than 16 MiB.
+- Serve bounded ranges without parsing and hashing the full book for every chunk.
+- Preserve ordinary library limits, pairing and session compatibility.
+
 - Serve completed desktop OCR preparations through the existing authenticated library API.
 - Verify source identity, preparation version, settings and chunk checksums; keep pending jobs private.
 - Preserve existing library, pairing, session and glasses interfaces.

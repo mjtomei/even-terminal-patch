@@ -1,5 +1,17 @@
 # Patch reviews
 
+## 0.2.5 — 2026-10-30
+
+Removes the fixed size cap on completed Pageborne OCR preparations. Downloads
+read bounded file ranges and reuse verified checksums only while file identity
+and timestamps match. Original document size limits and authentication remain.
+
+- Reconstructed installation: 84 files, version `0.8.1-shared.7`.
+- COPY bytes: 175216; INSERT bytes: 360976.
+- Manifest SHA-256: `0a31418bc12156e3f61992c912cd0721cdf4e0ccd42aef6060d1c55f6f82a5c8`.
+- Exact referenced-payload match audit: passed at 24 bytes.
+- Validation: large preparation chunk/offset tests, bridge and patch-tool suites.
+
 ## 0.2.4 — 2026-10-30
 
 Adds optional, authenticated retrieval of complete desktop OCR preparations.
