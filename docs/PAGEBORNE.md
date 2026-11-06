@@ -5,6 +5,16 @@ used by Pageborne. They share its existing port, transport and pairing-token
 authentication. No additional library service or dependency is required. The
 Pageborne phone/glasses client and web hosting are distributed separately.
 
+## Reading-time metadata
+
+`GET /api/pageborne/library?reading=1` includes an optional `readingWords` count
+for each PDF with a completed preparation matching its current source hash and
+the desktop OCR engine. Counts cover reflowed text, excluding figures and
+handwritten annotations. Missing preparations omit the field; zero means a
+completed result with no readable text. Listing never starts OCR or returns
+document text. Existing clients can omit the query and keep the original
+manifest shape. Pageborne saves these counts offline and refreshes them on sync.
+
 ## Library and question files
 
 Original `.pdf`, `.md`, `.markdown` and UTF-8 `.txt` documents live directly in

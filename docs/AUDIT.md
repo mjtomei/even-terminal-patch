@@ -1,5 +1,20 @@
 # Patch reviews
 
+## 0.2.6 — 2026-11-05
+
+Adds opt-in, completed-PDF word counts to the authenticated library manifest.
+The source hash, engine, preparation version and artifact identity must match.
+Counts omit figures/annotations and refresh when an artifact changes. Listing
+does not enqueue OCR. Default manifests and all session interfaces are unchanged.
+
+- Reconstructed installation: 84 files, version `0.8.1-shared.8`.
+- COPY bytes: 175268; INSERT bytes: 363031.
+- Manifest SHA-256: `84aa0cc3c144fb2a19de8e08d8a6733bf271d67a161d1a6b14741075e61cfa06`.
+- Exact referenced-payload match audit: passed at 24 bytes.
+- Only the optional library route and package version differ from 0.2.5.
+- Validation: current/changed/partial/missing preparation counts; Pageborne's
+  library/storage tests and 17 patch-tool tests; full reconstruction passed.
+
 ## 0.2.5 — 2026-10-30
 
 Removes the fixed size cap on completed Pageborne OCR preparations. Downloads

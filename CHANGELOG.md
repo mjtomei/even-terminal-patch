@@ -1,4 +1,11 @@
-# 0.2.4 — 2026-10-30
+# Changes
+
+## 0.2.6 — 2026-11-05
+
+- Add opt-in PDF word counts to the library manifest for Pageborne reading-time estimates.
+- Read only completed preparations for the current source and OCR engine; cache counts until the artifact changes. Listing the library never schedules OCR.
+- Preserve the default manifest and all session, pairing and stock glasses interfaces.
+- Reconstruct `0.8.1-shared.8` from the same pinned upstream archive.
 
 ## 0.2.5 — 2026-10-30
 
@@ -6,11 +13,11 @@
 - Serve bounded ranges without parsing and hashing the full book for every chunk.
 - Preserve ordinary library limits, pairing and session compatibility.
 
+## 0.2.4 — 2026-10-30
+
 - Serve completed desktop OCR preparations through the existing authenticated library API.
 - Verify source identity, preparation version, settings and chunk checksums; keep pending jobs private.
 - Preserve existing library, pairing, session and glasses interfaces.
-
-# Changes
 
 ## 0.2.3 — 2026-10-26
 

@@ -126,13 +126,21 @@ async function archive(root, doc) {
     if (!await exclusive(file, doc.data)) check(hash(await readSafe(file)) === doc.sha256, 'Invalid library history.');
   });
 }
-const metadata = doc => ({ name: doc.name, bytes: doc.bytes, sha256: doc.sha256, addedAt: doc.addedAt, modifiedAt: doc.modifiedAt })braryIdentity(options) { return identity(await rootDirectory(options)); libraryManifest({ name: selected } = {}, options) {
+const metadata = doc => ({ name: doc.name, bytes: doc.bytes, sha256: doc.sha256, addedAt: doc.addedAt, modifiedAt: doc.modifiedAt })braryIdentity(options) { return identity(await rootDirectory(options)); libraryManifest({ name: selected, reading = false } = {}, options) {
   if (selected !== undefined) nameOf(selected);
   const root = await rootDirectory(options), id = await identity(root), files = [], skippedselected !== undefined ? [selected] : (await readdir(root)).sort()) {
     if (name.startsWith('.') || !/\.(md|markdown|txt|pdf)$/i.test(name)) continue;
     try {
       const doc = await documentAt(root, name); if (!doc) continue;
-      await archive(root, doc); files.push(metadata(doc));
+      await archive(root, doc);
+      const file = metadata(doc);
+      // Optional, small metadata only. Never start OCR or send whole prepared
+      // books just to display the library's reading-time estimates.
+      if (reading && /\.pdf$/i.test(name)const words = await preparedWordCount(root, doc.sha256);
+          if (words !== null) file.readingWords = words;
+        } catch { /* Unavailable preparation must not block file sync. */ }
+      }
+      files.push(file);
     } catch (error) { skipped.push({ name, reason: error.status ? error.message : 'Could not read this file.' }); }
   }
   await dateFiles(root, files, selected === undefined && skipped.length === 0);
@@ -259,7 +267,35 @@ export function preparationRequest(key) {
 // Keep only checked identities in memory. Reuse the checksum while the file is
 // unchanged, and read each requested range without loading/parsing the whole
 // book again for every chunk. Original-file and small-metadata limits remain.
-const preparedFiles = new Map();
+const preparedFilecountPreparedWords(layout) {
+  if (!Array.isArray(layout?.blocks) || layout.preparation?.complete === false) return null;
+  let words = 0;
+  for (const block of layout.blocks) {
+    if (!block.reflow || block.annotation || block.annotationLabel) continue;
+    let text = '', previous;
+    // Same source-word reconstruction as the reader, including words which
+    // wrap across rows. OCR metadata behind an image is not readable text.
+    for (const row of block.reflow.rows) {
+      if (text && (!previous || row.label || previous.label || row.start !== previous.end)) text += ' ';
+      text += row.text; previous = row;
+    }
+    words += (text.match(/\S*[\p{L}\p{N}]\S*/gu) || []).length;
+  }
+  return words;
+}
+async function preparedWordCount(root, sha256) {
+  const folder = await subdirectory(root, 'ocr');
+  const bytes = await readSafe(path.join(folder, 'daemon.json'), 4096);
+  if (!bytes) return null;
+  const state = JSON.parse(bytes);
+  check(/^[a-f0-9]{64}$/.test(state.engine), 'Invalid OCR daemon state.');
+  const key = JSON.stringify([state.preparationVersion, state.pdfjs, sha256,
+    { mode: 'auto', keepMarginNotes: false, keepRepeatedText: false, normalizeColors: true, reflow: true, textSize: 20 }]);
+  preparationRequest(key);
+  const prepared = await subdirectory(root, 'ocr', state.engine, 'prepared');
+  const result = await readPreparation(path.join(prepared, hash(key) + '.json'), key, state.engine, state.preparationVersion);
+  return result?.readingWords ?? null;
+}
 async function readPreparation(file, key, engine, version, offset, expectedHash) {
   const stat = await safeFile(file); if (!stat) return null;
   const stamp = value => [value.dev, value.ino, value.size, value.mtimeMs, value.ctimeMs].join(':');
@@ -274,12 +310,13 @@ async function readPreparation(file, key, engine, version, offset, expectedHash)
       const artifact = JSON.parse(bytes);
       check(artifact.key === key && artifact.engine === engine && artifact.saved?.version === version, 'Invalid desktop PDF preparation.');
       check(unchanged(await handle.stat()), 'Desktop PDF preparation changed.', 409);
-      cached = { stamp: stamp(before), key, engine, sha256: hash(bytes), bytes: bytes.length };
+      cached = { stamp: stamp(before), key, engine, sha256: hash(bytes), bytes: bytes.length,
+        readingWords: countPreparedWords(artifact.saved.layout) };
       preparedFiles.delete(file);
       if (preparedFiles.size >= 64) preparedFiles.delete(preparedFiles.keys().next().value);
       preparedFiles.set(file, cached);
     }
-    if (offset === undefined) return { state: 'ready', key, engine, sha256: cached.sha256, bytes: cached.bytes };
+    if (offset === undefined) return { state: 'ready', key, engine, sha256: cached.sha256, bytes: cached.bytes, readingWords: cached.readingWords };
     check(expectedHash === cached.sha256, 'Desktop PDF preparation changed.', 409);
     check(Number.isSafeInteger(offset) && offset >= 0 && offset < cached.bytes, 'Invalid preparation offset.');
     const data = Buffer.alloc(Math.min(LIBRARY_CHUNK_BYTES, cached.bytes - offset));
@@ -313,7 +350,7 @@ async function readPreparation(file, key, engine, version, offset, expectedHash)
   if ((await readdir(queue)).length < 64) await exclusive(path.join(queue, hash(key) + '.json'), Buffer.from(JSON.stringify({ name, key })));
   return { state: 'pending' };
 }LibrarySync(router, options = {}) {
-  router.get('/pageborne/library'try { res.json(await libraryManifest({ name: req.query.name }, options)); }
+  router.get('/pageborne/library'try { res.json(await libraryManifest({ name: req.query.name, reading: req.query.reading === '1' }, options)); }
     catch {'Could not open the desktop library.' }); }
   });
   for (const [route, ac{ status: libraryUploadStatus, chunk: libraryUploadChunk, commit: libraryCommit, read: libraryRead, remove: libraryRemove, preparation: libraryPreparation })) {
