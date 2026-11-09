@@ -121,3 +121,5 @@ Capabilities are advertised under `pageborne` in `/api/info`.
 The reconstructed server modules define request fields and validation. Tests use
 temporary libraries and synthetic owners; they do not start real agents, change
 your library, or verify physical glasses behavior.
+
+The optional conversation response includes `sessionModel` from the selected native Claude or Codex owner, or null if unavailable. This is separate from the desktop model default for new sessions.

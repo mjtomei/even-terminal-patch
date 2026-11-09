@@ -32,7 +32,10 @@ export function createNativeSessionLauncher({ model, cli = process.env.PAGEBORNE
         catch (error) {
             if (error.code !== 'EEXIST') throw error;
             const saved = JSON.parse(await readFile(file, 'utf8'));
-            if (saved.cwd !== cwd || saved.title !== title || saved.model !== model) throw fail('This session request already belongs to another conversation.', 409tching = () => bindings().filter(b => b.localId === requestId && b.cwd === cwd);
+            if (saved.cwd !== cwd || saved.title !== title || saved.sessionId !== requestId || typeof saved.model !== 'string') throw fail('This session request already belongs to another conversation.', 409);
+            // A retry after the desktop default changes still belongs to the
+            // original owner. Never relaunch or upgrade that conversation.
+            record.model = saved.modeltching = () => bindings().filter(b => b.localId === requestId && b.cwd === cwd);
         if (matching().length === 1) return record;
         const name = `pb-${requestId}`;
         const exists = async () => { try { await run('tmux', ['-L', 'pageborne-claude', 'has-session', '-t', name], { timeout: 5000 }); return true; } catch { return false; } };

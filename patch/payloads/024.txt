@@ -85,6 +85,7 @@ itartedThread;
         detachasync setSessionTitle(id, title) { await client.threadSetName(id, title); },
         async return ().map(s })); },
         async getSessionStatus(id) {id)); },
+        async getSessionModel(id) { return (id)).model || null; },
         async getInfo()ounreturn { account: account ?? {}, model: "Codex", version: client.serverInfo?.userAgent ?? "Shared daemon"    },
         async getHistory(id, limitsession = await attach(id);
                 await mergeLocalRollout(client    awaitid, limit, turns => session.transcript.merge(turns) session.transcript.history(limit);

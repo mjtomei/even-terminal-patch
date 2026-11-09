@@ -21,6 +21,7 @@ test('native creation is opt-in, durable and idempotent across concurrent retrie
     const [a, b] = await Promise.all([launcher.prepare(input), launcher.prepare(input)]);
     assert.deepEqual(a, b); assert.equal(a.model, 'claude-fable-5-1');
     assert.equal((await createNativeSessionLauncher(options).prepare(input)).sessionId, input.requestId);
+    assert.equal((await createNativeSessionLauncher({ ...options, model: 'claude-fable-5-2' }).prepare(input)).model, 'claude-fable-5-1', 'retry preserves original owner after default upgrade');
     const launches = calls.filter(([, args]) => args.includes('new-session'));
     assert.equal(launches.length, 1);
     assert.ok(launches[0][1].at(-1).includes(" Paper '\\'' $(touch /tmp/no)'"));

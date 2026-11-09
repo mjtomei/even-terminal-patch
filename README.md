@@ -5,6 +5,8 @@ attachment to an existing Codex daemon and an experimental connector to normally
 launched Claude sessions with native Remote Control. Your terminal and native
 phone connection keep their existing agent owner; the glasses use the Even app.
 
+Release **0.2.8** adds optional session-model metadata for Pageborne Ask and preserves existing native sessions across desktop default-model upgrades.
+
 Release **0.2.7** adds text titles and word counts to the optional Pageborne reading manifest. This supports catalog-only phone sync and downloads on opening; existing clients and the default manifest remain compatible. The reader validates the desktop library identity and original-file digest before fetching a document.
 
 Release **0.2.4** adds an optional authenticated endpoint for completed Pageborne

@@ -18,7 +18,15 @@ export class RemoteTranscript {
         const key = `${event.type}:${event.uuid || envelope.event_id || envelope.sequence_num}`;
         if (this.seen.has(key))en.add(key);
         if (this.seen.size > 10000) this.seen.delete(this.seen.values().next().value);
-        const send = message => { if (notify) this.emit(message); };
+        // Native init is emitted when the selected model changes. Assistant
+        // messages also identify the model used when older history lacks init.
+        const model = event.type === 'system' && event.subtype === 'init' ? event.model
+            : event.type === 'assistant' && !event.isSynthetic ? event.message?.model : undefined;
+        const modelSequence = sequence(envelope.sequence_num);
+        if (typeof model === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}$/.test(model)
+            && (this.modelSequence == null || modelSequence != null && modelSequence > this.modelSequence)) {
+            this.model = model;
+            this.modelSequence = modelSequencsend = message => { if (notify) this.emit(message); };
         if (['user', 'assistant'].includes(event.typeext = textContent(event.message?.content);
             if (text.trim() && !event.isMeta && !event.isSyntheticntries.set(key, { role: event.typeevent.type === 'user') this.lastUser = keyentries.size > 1000) this.entries.delete(this.entries.keys().next().value);
                 send(event.type === 'user' ? { type: 'user_prompt', text } : { type: 'text_delta', text: `\n\n${text}`if (event.type === 'assistant' && Array.isArray(event.message?for (const [index, block] of event.message.content.entries(block?.type === 'tool_use'const summary|| {const detail = block.name === 'Bash' ? commandDetail('Bash', block.input?.command) : undefinedthis.entries.set(`tool:${block.id || key + ':' + index}`, { role: 'activity', kind: 'tool', text: summary.slice(0, 200)...(detail ? { detail } : {}), state: 'pending'send({ type: 'tool_start', name: block.name, toolId: block.id, summary} else if (block?.type === 'thinking'// This is the displayable thinking block supplied by// Claude. Redacted blocks/signatures are not retained.entries.set(`thinking:${key}:${index}`, { role: 'activity', kind: 'thinking'text: typeof block.thinking === 'string' ? block.thinking.slice(0, 800) || 'Thinking…' : 'Thinking…', state: 'complete'}

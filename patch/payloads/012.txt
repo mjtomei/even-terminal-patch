@@ -108,6 +108,7 @@ lastStatus !== statusKey) { entry.lastStatus = statusKey; notify(entry, status);
         async getSessionStatus(id) { return state(await attach(id)); },
         async getHistory(id, limit) { const entry = await attach(id); await refresh(entry); return entry.transcript.history(limit); },
         async getConversation(id) { const entry = await attach(id); await refresh(entry); return entry.transcript.snapshot(state(entry)); },
+        async getSessionModel(id) { return (await attach(id)).transcript.model || null; },
         initialMessages(id, includeText = trentry = entries.get(id);
             if (!entry?.hydrated) return [];
             // The app loads completed turns from /history. Sending the same

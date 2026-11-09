@@ -7,7 +7,7 @@ export function displayQuestion(text) {
   if (!match) return { question: text };
   const body = text.slice(match[0].length);
   let question;
-  if (body.startsWith("You are the user's librarian,") && body.includes('\n\n')) question = body.slice(body.indexOf('\n\n') + 2);
+  if ((body.startsWith("You are the user's librarian,") || body.startsWith("Pageborne desktop session.")) && body.includes('\n\n')) question = body.slice(body.indexOf('\n\n') + 2);
   else if (body.startsWith('You are a reading companion on text-only glasses.') || body.startsWith('You are a reading companion in a phone and tablet web reader.')) {
     // JSON is serialized on one line, so embedded source/question delimiters
     // cannot be mistaken for the boundary of the original question.
@@ -67,7 +67,11 @@ ConversationSync(router, getProvider) {
   q.query.provider, id);
       if (!conversationCapabilities(provider).conversationSync) return'Conversation sync unavailable.' });
       const turns = conversationTurns(await provider.getConversation(id));
-      res.json({ version: 1, sessionId: id, turns, state: provider.getStatus(id)?.state || 'idle' });
+      // Optional metadata must never prevent transcript recovery. Do not use
+      // getInfo().model: that is the default for new sessions, not this owner.
+      const model = await Promise.resolve().then(() => provider.getSessionModel?.(id)).catch(() => null);
+      const sessionModel = typeof model === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}$/.test(model) ? model : null;
+      res.json({ version: 1, sessionId: id, turns, sessionModel, state: provider.getStatus(id)?.state || 'idle' });
     } catch (error) { res.status(error.statusCode || 502).json({ error: 'Could not load the shared conversation.' }); }
   });
 }

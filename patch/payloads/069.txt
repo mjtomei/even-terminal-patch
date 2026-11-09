@@ -280,3 +280,22 @@ test('Even HTTP/SSE selects the native Claude session with provider omitted', as
     assert.equal((await (await fetch(`${base}/status?sessionId=${f.id}`)).json()).provider, 'claude');
     controller.abort(); await reading;
 });
+
+test('native session model follows ordered owner events, not launcher default or subagents', async t => {
+    const fake = backend();
+    fake.append({ type: 'system', subtype: 'init', model: 'claude-fable-5-1' }createRemoteClaudeProvider(() => {}, { client: fake.client, bindings: fake.bindings, pollMs: 60000, launcher: { model: 'claude-fable-5-2' } });
+    t.after(() => provider.close());
+    await provider.getConversation(fake.id);
+    assert.equal(().model, 'claude-fable-5-2');
+    assert.equal(Model(fake.id), 'claude-fable-5-1');
+    fake.append({ type: 'system', subtype: 'init', model: 'claude-fable-5-2' });
+    fake.append({ type: 'assistant', parent_tool_use_id: 'subagent', message: { model: 'claude-other' } });
+    await provider.getConversation(fake.id);
+    assert.equal(Model(fake.id), 'claude-fable-5-2');
+    assert.equal(fake.calls.filter(c => c[0] === 'send').length, 0);
+    const transcript = new RemoteTranscript('model-test', () => {});
+    transcript.ingest({ sequence_num: '10', payload: { type: 'assistant', uuid: '10', message: { model: 'claude-fable-5-2' } } });
+    transcript.ingest({ sequence_num: '9', payload: { type: 'system', uuid: '9', subtype: 'init', model: 'claude-fable-5-1' } });
+    transcript.ingest({ sequence_num: '11', payload: { type: 'assistant', uuid: '11', message: { model: '<synthetic>' } } });
+    assert.equal(transcript.model, 'claude-fable-5-2');
+});

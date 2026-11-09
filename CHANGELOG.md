@@ -1,5 +1,11 @@
 # Changes
 
+## 0.2.8 — 2026-11-09
+
+- Expose the actual native Claude or Codex session model in optional conversation metadata; missing metadata does not block history.
+- Preserve existing native owners when a creation retry follows a default-model upgrade.
+- Reconstruct `0.8.1-shared.10` from the same pinned upstream archive.
+
 ## 0.2.6 — 2026-11-05
 
 - Add opt-in PDF word counts to the library manifest for Pageborne reading-time estimates.

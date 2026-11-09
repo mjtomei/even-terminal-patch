@@ -1,5 +1,15 @@
 # Patch reviews
 
+## 0.2.8 — 2026-11-09
+
+Optional conversation metadata identifies the selected Claude/Codex owner, without changing its model or submitting input. Native launch retries preserve an older owner after the desktop default changes.
+
+- 84 reconstructed files, version `0.8.1-shared.10`.
+- Manifest SHA-256: `96bb5945683587d75c1d4ad153ca49fe4c178b9b947911e31740384e8f9585e5`.
+- Exact referenced-payload match audit passed at 24 bytes.
+- 86 reconstructed bridge tests and 17 patch-tool tests passed.
+- Live model metadata was inspected read-only; existing owners were not upgraded.
+
 ## 0.2.6 — 2026-11-05
 
 Adds opt-in, completed-PDF word counts to the authenticated library manifest.

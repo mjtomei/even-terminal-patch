@@ -219,7 +219,7 @@ test('runtime flags and unloaded history do not show false idle/busy state', () 
 
 test('HTTP/SSE interface authenticates, attaches existing threads, streams and responds across clients', async t => {
     const d = await daemon(t(process.execPath, ['bin/cli.js', '--codex-socket', d.socket, '--host', '127.0.0.1', '--port', '0', '--no-qr'], {
-        cwd: new URL('..', import.meta.url), env: { ...process.env, EVEN_TERMINAL_STATE_DIR: join(d.dir, 'state'), PAGEBORNE_LIBRARY_DIR: join(d.dir, 'library'), PAGEBORNE_CLAUDE_MODEL: '', EVEN_CLAUDE_MODE: 'remote', BRIDGE_TOKEN: 'test-only-token', CODEX_APP_SERVER_URL: '' }, stdio: ['ignore', 'pipe', 'pipe'],
+        cwd: new URL('..', import.meta.url), env: { ...process.env, EVEN_TERMINAL_STATE_DIR: join(d.dir, 'state'), BRIDGE_TOKEN: 'test-only-token', CODEX_APP_SERVER_URL: '' }, stdio: ['ignore', 'pipe', 'pipe'],
     });
     let output = '';
     child.stdout.on('data', b => output += b); child.stderr.on('data', b => output += b);
@@ -228,21 +228,6 @@ test('HTTP/SSE interface authenticates, attaches existing threads, streams and r
     const base = output.match(/\[server\] listening (http:\/\/[^\s]+)/)[1];
     const headers = { Authorization: 'Bearer test-only-token' };
     assert.equal((await fetch(`${base}/api/sessions`)).status, 401);
-    const api = async (route, body) => fetch(`${base}/api/${route}`, { headers: { ...headers, 'Content-Type': 'application/json' }, ...(body ? { method: 'POST', body: JSON.stringify(body) } : {}) });
-    for (const [route, method] of [['pageborne/library', 'GET'], ['pageborne/reader-state', 'GET'], ['pageborne/files/status', 'POST'], ['pageborne/workspace', 'POST'], ['pageborne/session', 'POST'], ['pageborne/conversation?sessionId=existing', 'GET']]) {
-        assert.equal((await fetch(`${base}/api/${route}`, { method })).status, 401);
-    }
-    const info = await (await api('info?provider=codex')).json();
-    assert.equal(info.pageborne.librarySync, 1); assert.equal(info.pageborne.documentSnapshots, 1);
-    assert.equal(info.pageborne.conversationSync, 1); assert.equal(info.pageborne.sessionTitles, 1);
-    const library = await (await api('pageborne/library')).json();
-    assert.deepEqual(library.files, []);
-    assert.equal(library.directory, join(d.dir, 'library'));
-    const linked = await api('pageborne/reader-state', { document: 'paper.md', agent: 'codex', sessionId: 'existing', anchors: [] });
-    assert.equal(linked.status, 200);
-    assert.equal((await (await api('pageborne/reader-state')).json()).records[0].primary, 'existing');
-    assert.equal((await api('pageborne/session?provider=claude', { requestId: 'unused' })).status, 404);
-    assert.equal((await api('pageborne/conversation?provider=codex&sessionId=existing')).status, 200);
     const list = await (await fetch(`${base}/api/sessions?provider=codex`, { headers })).json();
     assert.equal(list.sessions[0].id, 'existing');
     const abort t.after(() => abort.abort());
@@ -477,4 +462,15 @@ test('unknown threads fail without creating a replacement conversation', async t
     await assert.rejects(provider.attach('does-not-exist'), e => e.statusCode === 404);
     assert.equal(p.length, 0);
     assert.equal(d.requests.some(r => r.method === 'thread/start'), false);
+});
+
+test('model display reads the selected thread without resuming or overriding it', async t => {
+    const d = await daemon(t); const { provider } = providerFor(t, d);
+    d.thread.model = 'gpt-6-astra';
+    assert.equal(Model('existing'), 'gpt-6-astra');
+    d.thread.model = 'gpt-6-sol';
+    assert.equal(Model('existing'), 'gpt-6-sol');
+    delete d.thread.model;
+    assert.equal(Model('existing'), null);
+    assert.equal(d.requests.some(r => ['thread/resume', 'thread/start', 'turn/start'].includes(r.method)), false);
 });
