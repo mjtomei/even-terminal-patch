@@ -1,5 +1,11 @@
 # Changes
 
+## 0.2.10 — 2026-11-10
+
+- Return a full month of library activity with one day of sync margin.
+- Refresh available PDF word counts across that window; preserve the permanent ledger.
+- Reconstruct `0.8.1-shared.12` from the same pinned upstream archive.
+
 ## 0.2.9 — 2026-11-10
 
 - Retain addition and deletion dates and word counts in a durable library activity ledger.

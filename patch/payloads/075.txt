@@ -10,6 +10,17 @@ async function fixture(t) {
   t.after(() => rm(root, { recursive: true, force: true }));
   return { root, options: { libraryDir: root } };
 }
+test('activity includes a full month plus sync margin and retains older ledger events', async t => {
+  const { root, options } = await fixture(t);
+  await libraryManifest({}, options);
+  const file = path.join(root, '.pageborne/activity.json'), saved = JSON.parse(await readFile(file));
+, day = 86400000;
+  saved.events = [20, 30, 32].map(age => ({ id: String(age), kind: 'deleted', at: now - age * day,
+    document: { name: `${age}.md`, sha256: null, words: 100, addedAt: now - 40 * day } }));
+  await writeFile(file, JSON.stringify(saved));
+  assert.deepEqual((await libraryActivity({}, options)).events.map(event => event.id), ['20', '30']);
+  assert.equal(JSON.parse(await readFile(file)).events.length, 3);
+});
 test('local-only imports and deletions sync durably without counting a still-present desktop original', async t => {
   const { root, options } = await fixture(t);
   await writeFile(path.join(root, 'present.md'), 'still here');

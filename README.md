@@ -5,6 +5,8 @@ attachment to an existing Codex daemon and an experimental connector to normally
 launched Claude sessions with native Remote Control. Your terminal and native
 phone connection keep their existing agent owner; the glasses use the Even app.
 
+Release **0.2.10** serves 31 days of library activity for Pageborne’s rolling 30-day clearance estimates. The complete ledger remains unchanged.
+
 Release **0.2.9** adds durable library additions and deletions for Pageborne’s 14-day clearance estimates. Offline deletion times and reader word counts survive sync retries.
 
 Release **0.2.8** adds optional session-model metadata for Pageborne Ask and preserves existing native sessions across desktop default-model upgrades.
