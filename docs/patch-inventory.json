@@ -1,11 +1,11 @@
 {
   "baseline_version": "0.8.1",
-  "output_files": 84,
-  "copy_bytes": 175515,
-  "insert_bytes": 366878,
+  "output_files": 85,
+  "copy_bytes": 175601,
+  "insert_bytes": 379825,
   "operation_counts": {
-    "insert": 1416,
-    "copy": 1544
+    "insert": 1420,
+    "copy": 1547
   },
   "literal_exact_match_check_bytes": 24,
   "literal_exact_match_check": "passed",
@@ -248,8 +248,8 @@
     },
     {
       "path": "dist/routes/pageborne-library.js",
-      "copy_bytes": 697,
-      "insert_bytes": 22822
+      "copy_bytes": 782,
+      "insert_bytes": 30926
     },
     {
       "path": "dist/routes/pageborne-reader-state.js",
@@ -328,8 +328,8 @@
     },
     {
       "path": "package.json",
-      "copy_bytes": 311,
-      "insert_bytes": 542
+      "copy_bytes": 312,
+      "insert_bytes": 541
     },
     {
       "path": "scripts/diagnose-claude.mjs",
@@ -385,6 +385,11 @@
       "path": "test/pageborne-files.test.js",
       "copy_bytes": 0,
       "insert_bytes": 3861
+    },
+    {
+      "path": "test/pageborne-library-activity.test.js",
+      "copy_bytes": 0,
+      "insert_bytes": 4844
     },
     {
       "path": "test/pageborne-library.test.js",

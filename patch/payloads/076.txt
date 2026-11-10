@@ -1,31 +1,120 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,writeFile,mkdir,rm} from 'node:fs/promises';
-import {tmpdir} from 'node:os';
+import { mkdtemp, rm, readFile, writeFile, symlink, link, mkdir, utimes, rename } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
-import {createHash} from 'node:crypto';
-import {libraryManifest,libraryPreparation,libraryOcrDirectory} from '../dist/routes/pageborne-library.js';
-const hash=value=>createHash('sha256').update(value).digest('hex');
-test('optional OCR serves only complete matching preparations and leaves originals alone',async t=>{
- const libraryDir=await mkdtemp(path.join(tmpdir(),'terminal-ocr-'));t.after(()=>rm(libraryDir,{recursive:true,force:true}));
- const options={libraryDir},name='scan.pdf',engine='a'.repeat(64);
- await writeFile(path.join(libraryDir,name),'%PDF-original');
- const manifest=await libraryManifest({},options);
- const key=JSON.stringify([17,'6.3.289',manifest.files[0].sha256,{mode:'auto',keepMarginNotes:false,keepRepeatedText:false,normalizeColors:true,reflow:true,textSize:20}]);
- assert.equal((await libraryPreparation({name,key},options)).state,'unavailable');
- const root=await libraryOcrDirectory(options);
- await mkdir(path.join(root,engine,'prepared'),{recursive:true});await mkdir(path.join(root,'requests'));
- await writeFile(path.join(root,'daemon.json'),JSON.stringify({engine,preparationVersion:17,pdfjs:'6.3.289',heartbeat:Date.now()}));
- assert.equal((await libraryPreparation({name,key},options)).state,'pending');
- const artifact=JSON.stringify({key,engine,saved:{version:17,layout:{text:"Book text. ".repeat(1_700_000)}}});
- await writeFile(path.join(root,engine,'prepared',hash(key)+'.json'),artifact);
- const ready=await libraryPreparation({name,key},options);assert.equal(ready.state,'ready');
- const chunk=await libraryPreparation({name,key,offset:0,sha256:ready.sha256},options);
- assert.ok(ready.bytes > 16*1024*1024);
- assert.equal(Buffer.from(chunk.data,'base64').toString(),artifact.slice(0,768*1024));
- const end=await libraryPreparation({name,key,offset:ready.bytes-10,sha256:ready.sha256},options);
- assert.equal(Buffer.from(end.data,'base64').toString(),artifact.slice(-10));
- await assert.rejects(libraryPreparation({name,key,offset:0,sha256:'b'.repeat(64)},options));
- await writeFile(path.join(libraryDir,name),'%PDF-changed');
- await assert.rejects(libraryPreparation({name,key},options),/changed/i);
+import { createHash } from 'node:crypto';
+import { LIBRARY_CHUNK_BYTES, libraryManifest, libraryUploadStatus, libraryUploadChunk,
+  libraryCommit, libraryRead, libraryRemove } from '../dist/routes/pageborne-library.js';
+import { paperFilesStatus, paperFileChunk, commitPaperFiles } from '../dist/routes/pageborne-files.js';
+
+const hash = value => createHash('sha256').update(value).digest('hex');
+const descriptor = (name, value) => ({ name, bytes: Buffer.byteLength(value), sha256: hash(value) });
+async function fixture(t) {
+  const root = await mkdtemp(path.join(tmpdir(), 'pageborne-release-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  return { libraryDir: path.join(root, 'library'), baseDir: path.join(root, 'papers') };
+}
+async function upload(options, name, text) {
+  const file = descriptor(name, text), bytes = Buffer.from(text);
+  for (let offset = 0; offset < bytes.length; offset += LIBRARY_CHUNK_BYTES) {
+    await libraryUploadChunk({ file, offset, data: bytes.subarray(offset, offset + LIBRARY_CHUNK_BYTES).toString('base64') }, options);
+  }
+  return file;
+}
+
+test('library commits preserve versions, reject stale edits and deletions, and retry acknowledgements safely', async t => {
+  const options = await fixture(t);
+  const first = await upload(options, 'paper.md', '# First');
+  const committed = await libraryCommit({ file: first, expected: null }, options);
+  assert.deepEqual(await libraryCommit({ file: first, expected: null }, options), committed);
+  const before = await libraryManifest({}, options);
+  assert.deepEqual(before.files, [committed]);
+  const second = await upload(options, 'paper.md', '# Second');
+  await libraryCommit({ file: second, expected: first.sha256 }, options);
+  const stale = await upload(options, 'paper.md', '# Stale phone edit');
+  await assert.rejects(libraryCommit({ file: stale, expected: first.sha256 }, options), { status: 409 });
+  await assert.rejects(libraryRead({ name: first.name, sha256: first.sha256 }, options), { status: 409 });
+  await assert.rejects(libraryRemove({ name: first.name, expected: first.sha256 }, options), { status: 409 });
+  const download = await libraryRead({ name: second.name, sha256: second.sha256 }, options);
+  assert.equal(Buffer.from(download.data, 'base64').toString(), '# Second');
+  await libraryRemove({ name: second.name, expected: second.sha256 }, options);
+  const after = await libraryManifest({}, options);
+  assert.equal(after.id, before.id); assert.deepEqual(after.files, []);
+  for (const [file, text] of [[first, '# First'], [second, '# Second']]) {
+    assert.equal(await readFile(path.join(options.libraryDir, '.pageborne/history', hash(file.name), file.sha256 + '.md'), 'utf8'), text);
+  }
+});
+
+test('library uploads resume at verified offsets and reject damaged or unsafe input', async t => {
+  const options = await fixture(t), text = 'x'.repeat(LIBRARY_CHUNK_BYTES + 20);
+  const file = descriptor('large.md', text);
+  const first = { file, offset: 0, data: Buffer.from(text.slice(0, LIBRARY_CHUNK_BYTES)).toString('base64') };
+  await libraryUploadChunk(first, options); await libraryUploadChunk(first, options);
+  assert.equal((await libraryUploadStatus({ file }, options)).offset, LIBRARY_CHUNK_BYTES);
+  await assert.rejects(libraryUploadChunk({ ...first, data: Buffer.from('wrong').toString('base64') }, options), /Conflicting/);
+  await assert.rejects(libraryCommit({ file, expected: null }, options), /incomplete/);
+  await libraryUploadChunk({ file, offset: LIBRARY_CHUNK_BYTES, data: Buffer.from(text.slice(LIBRARY_CHUNK_BYTES)).toString('base64') }, options);
+  await libraryCommit({ file, expected: null }, options);
+  assert.equal(await readFile(path.join(options.libraryDir, file.name), 'utf8'), text);
+  const bad = descriptor('bad.md', 'good');
+  await assert.rejects(libraryUploadChunk({ file: bad, offset: 0, data: Buffer.from('oops').toString('base64') }, options), /checksum/);
+  assert.equal((await libraryUploadStatus({ file: bad }, options)).offset, 0);
+  await assert.rejects(libraryUploadStatus({ file: { ...bad, name: '../escape.md' } }, options), /filename/);
+  await assert.rejects(libraryUploadStatus({ file: { ...bad, bytes: 5 * 1024 * 1024 } }, options), /size limit/);
+  const outside = path.join(options.libraryDir, 'outside'); await writeFile(outside, 'Keep');
+  await symlink(outside, path.join(options.libraryDir, 'linked.md'));
+  await link(outside, path.join(options.libraryDir, 'hard.md'));
+  for (const name of ['linked.md', 'hard.md']) {
+    await assert.rejects(libraryRemove({ name, expected: hash('Keep') }, options), /Linked/);
+  }
+  assert.equal(await readFile(outside, 'utf8'), 'Keep');
+  assert.equal((await libraryManifest({}, options)).skipped.length, 2);
+  const unsafe = path.join(options.libraryDir, 'unsafe'); await mkdir(unsafe);
+  await symlink(options.libraryDir, path.join(unsafe, '.pageborne'));
+  await assert.rejects(libraryManifest({}, { libraryDir: unsafe }), /Unsafe/);
+});
+
+test('Ask snapshots reuse archived originals and remain stable across desktop edits and unseen reader revisions', async t => {
+  const options = await fixture(t);
+  const original = await upload(options, 'paper.md', 'Original version');
+  await libraryCommit({ file: original, expected: null }, options);
+  const { id } = await libraryManifest({}, options);
+  for (const text of ['Original version', 'Unseen reader revision']) {
+    const contents = { 'original.md': text, 'reflow.md': 'Reflow for ' + text, 'index.json': '{}' };
+    const files = Object.entries(contents).map(([name, value]) => descriptor(name, value));
+    const library = { id, name: 'paper.md', sha256: hash(text), snapshot: true };
+    const request = { paperId: 'test-paper', files, library };
+    const { missing } = await paperFilesStatus(request, options);
+    assert.equal(missing.some(f => f.name === 'original.md'), text !== 'Original version');
+    await writeFile(path.join(options.libraryDir, 'paper.md'), 'Desktop edit during upload');
+    for (const { name } of missing) {
+      const chunk = { paperId: request.paperId, library, file: files.find(f => f.name === name), offset: 0, data: Buffer.from(contents[name]).toString('base64') };
+      await paperFileChunk(chunk, options); await paperFileChunk(chunk, options);
+    }
+    const saved = await commitPaperFiles(request, options);
+    assert.match(saved.index, /-snapshot-manifest\.json$/);
+    await writeFile(path.join(options.libraryDir, 'paper.md'), 'Desktop edit after commit');
+    assert.deepEqual(await commitPaperFiles(request, options), saved);
+    for (const file of saved.files) assert.equal(await readFile(file.path, 'utf8'), contents[file.name]);
+    assert.equal(await readFile(path.join(options.libraryDir, 'paper.md'), 'utf8'), 'Desktop edit after commit');
+    await assert.rejects(paperFilesStatus({ ...request, library: { ...library, id: 'another-library' } }, options), /library has changed/);
+    await assert.rejects(paperFilesStatus({ ...request, library: { ...library, snapshot: false } }, options), /changed on the desktop/);
+  }
+});
+
+
+test('library dates use addition time despite preserved old mtimes and survive atomic replacement', async t => {
+  const options = await fixture(t); await libraryManifest({}, options);
+  const file = path.join(options.libraryDir, 'book.txt'); await writeFile(file, 'First');
+  const old = new Date('2000-01-01'); await utimes(file, old, old);
+  const first = (await libraryManifest({}, options)).files[0];
+  assert.ok(first.addedAt > old.getTime()); assert.equal(first.modifiedAt, old.getTime());
+  await writeFile(file + '.new', 'Changed'); await rename(file + '.new', file);
+  const changed = (await libraryManifest({}, options)).files[0];
+  assert.equal(changed.addedAt, first.addedAt); assert.ok(changed.modifiedAt > first.modifiedAt);
+  assert.equal((await libraryManifest({ name: 'book.txt' }, options)).files[0].addedAt, first.addedAt);
+  await libraryRemove({ name: 'book.txt', expected: changed.sha256 }, options);
+  await libraryManifest({}, options); await writeFile(file, 'New addition');
+  assert.ok((await libraryManifest({}, options)).files[0].addedAt > first.addedAt);
 });

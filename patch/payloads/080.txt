@@ -1,37 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createProviderRouting } from '../dist/provider-routing.js';
+import { mkdtemp, rm, readFile, readdir, symlink, mkdir } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { paperWorkspace, expandPaperBase } from '../dist/routes/pageborne-workspaces.js';
 
-test('session ownership selects the backend while explicit providers and new-session defaults remain authoritative', () => {
-    const registry = { claude: {}, codex: {} };
-    const routing = createProviderRouting(registry, () => 'codex');
-    routing.remember('claude-id', 'claude');
-    routing.remember('codex-id', 'codex');
-    assert.equal(routing.resolve(undefined, 'claude-id'), registry.claude);
-    assert.equal(routing.resolve(undefined, 'codex-id'), registry.codex);
-    assert.equal(routing.resolve('codex', 'claude-id'), registry.codex);
-    assert.equal(routing.resolve('claude', 'codex-id'), registry.claude);
-    assert.equal(routing.resolve(), registry.codex);
-    assert.equal(routing.resolve(undefined, 'unknown'), registry.codex);
-    assert.throws(() => routing.resolve('invalid', 'claude-id'), error => error.statusCode === 400);
-    const claudeDefault = createProviderRouting(registry, () => 'claude');
-    claudeDefault.remember('codex-id', 'codex');
-    assert.equal(claudeDefault.resolve(undefined, 'codex-id'), registry.codex);
-    assert.equal(claudeDefault.resolve(), registry.claude);
+test('paper folders use a hidden home default, remain stable across titles, and isolate identities and custom bases', async t => {
+  const home = await mkdtemp(path.join(os.tmpdir(), 'pageborne-workspaces-')); t.after(() => rm(home, { recursive: true, force: true }));
+  const first = await paperWorkspace({ workspaceId: 'session-one', paperId: 'one', title: 'Paper' }, { home });
+  assert.equal(first.baseDir, path.join(home, '.pageborne/papers'));
+  const same = await paperWorkspace({ workspaceId: 'session-one', paperId: 'one', title: 'Renamed title' }, { home }); assert.equal(same.cwd, first.cwd);
+  const anotherSession = await paperWorkspace({ paperId: 'one', workspaceId: 'session-two' }, { home }); assert.notEqual(anotherSession.cwd, first.cwd); assert.equal(path.dirname(anotherSession.cwd), path.dirname(first.cwd));
+  const other = await paperWorkspace({ workspaceId: 'session-one', paperId: 'two', title: 'Paper' }, { home }); assert.notEqual(other.cwd, first.cwd);
+  const custom = await paperWorkspace({ workspaceId: 'session-one', paperId: 'one', baseDir: '~/research' }, { home }); assert.equal(custom.baseDir, path.join(home, 'research'));
+  assert.equal(JSON.parse(await readFile(path.join(first.cwd, 'paper.json'))).title, 'Paper');
+  const hostile = await paperWorkspace({ workspaceId: 'session-one', paperId: '../../elsewhere', title: '../../secret' }, { home }); assert.equal(path.dirname(path.dirname(hostile.cwd)), first.baseDir);
+  assert.throws(() => expandPaperBase('relative/path', home)); assert.throws(() => expandPaperBase('~somebody/papers', home));
+  await rm(first.cwd, { recursive: true }); const elsewhere = path.join(home, 'elsewhere'); await mkdir(elsewhere); await symlink(elsewhere, first.cwd);
+  await assert.rejects(paperWorkspace({ workspaceId: 'session-one', paperId: 'one' }, { home }), /symbolic link/); assert.deepEqual(await readdir(elsewhere), []);
 });
 
-test('reconnection can recognize local sessions before listing without invoking backend operations', () => {
-    const registry = { claude: { hasSession: id => id === 'saved', attach: () => assert.fail('Resolver attached') }, codex: {} };
-    const routing = createProviderRouting(registry, () => 'codex');
-    assert.equal(routing.resolve(undefined, 'saved'), registry.claude);
-    assert.equal(routing.resolve('codex', 'saved'), registry.codex);
-});
-
-test('ambiguous IDs require an explicit provider instead of guessing', () => {
-    const registry = { claude: {}, codex: {} };
-    const routing = createProviderRouting(registry, () => 'codex');
-    routing.remember('collision', 'claude');
-    routing.remember('collision', 'codex');
-    assert.throws(() => routing.resolve(undefined, 'collision'), error => error.statusCode === 409);
-    assert.equal(routing.resolve('claude', 'collision'), registry.claude);
-});

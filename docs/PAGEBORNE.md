@@ -5,6 +5,12 @@ used by Pageborne. They share its existing port, transport and pairing-token
 authentication. No additional library service or dependency is required. The
 Pageborne phone/glasses client and web hosting are distributed separately.
 
+## Library clearance activity
+
+`GET /api/pageborne/library/activity` returns the last 15 days of addition and deletion metadata, with a tracking start date. The desktop retains the complete ledger in `.pageborne/activity.json`; historical deletion dates before tracking began cannot be inferred. `POST` accepts compact offline removal records, without uploading deleted originals. Records for still-present desktop originals wait for the ordinary checksum-checked removal. `library/remove` accepts an optional operation ID, original deletion timestamp, and reader word count.
+
+The phone uses a rolling 14-day window: full deleted-document words plus accepted document-reading words for texts not deleted in that window, divided by 14. Ask is excluded. Added words divided by cleared words gives the additions/clearance ratio. Re-adding a deleted filename starts a new incarnation; edits do not. Unknown counts remain explicit.
+
 ## Reading-time metadata
 
 `GET /api/pageborne/library?reading=1` includes an optional `readingWords` count

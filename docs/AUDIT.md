@@ -1,5 +1,15 @@
 # Patch reviews
 
+## 0.2.9 — 2026-11-10
+
+Durable library additions/deletions support Pageborne clearance estimates. Removal intent is saved before unlink, acknowledgements deduplicate retries, and only complete manifests infer external removals. Offline-only removals retain their original timestamps and counts.
+
+- 85 reconstructed files, version `0.8.1-shared.11`.
+- Manifest SHA-256: `722fde1b4ec195b6df5a7bad5c90ccced887f1baaf1cdd189623efa924f69756`.
+- Exact referenced-payload match audit passed at 24 bytes.
+- 89 reconstructed bridge tests and 17 patch-tool tests passed.
+- Pairing and session interfaces are unchanged; no native owner upgrade is involved.
+
 ## 0.2.8 — 2026-11-09
 
 Optional conversation metadata identifies the selected Claude/Codex owner, without changing its model or submitting input. Native launch retries preserve an older owner after the desktop default changes.

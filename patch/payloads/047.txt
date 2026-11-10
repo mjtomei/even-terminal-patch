@@ -126,21 +126,129 @@ async function archive(root, doc) {
     if (!await exclusive(file, doc.data)) check(hash(await readSafe(file)) === doc.sha256, 'Invalid library history.');
   });
 }
-const metadata = doc => ({ name: doc.name, bytes: doc.bytes, sha256: doc.sha256, addedAt: doc.addedAt, modifiedAt: doc.modifiedAt })braryIdentity(options) { return identity(await rootDirectory(options)); libraryManifest({ name: selected, reading = false } = {}, options) {
+const metadata = doc => ({ name: doc.name, bytes: doc.bytes, sha256: doc.sha256, addedAt: doc.addedAt, modifiedAt: doc.modifiedAt });
+const activityPath = root => path.join(root, '.pageborne', 'activity.json');
+const inventoryLock = root => path.join(root, '.pageborne', 'inventory-lock');
+async function activityDocument(root, doc) {
+  let words = doc.readingWords ?? doc.words ?? null;
+  if (words === null && /\.pdf$/i.test(doc.name)) words = await preparedWordCount(root, doc.sha256).catch(() => null);
+  if (words === null && doc.data && !/\.pdf$/i.test(doc.name)) words = (doc.data.toString('utf8').match(/\S+/g) || []).length;
+  return { name: doc.name, sha256: doc.sha256, addedAt: doc.addedAt, words };
+}
+async function readActivity(root) {
+  const bytes = await readSafe(activityPath(root));
+  if (!bytes) return null;
+  const saved = JSON.parse(bytes);
+  check(saved.version === 1 && Number.isFinite(saved.startedAt) && Array.isArray(saved.current) && Array.isArray(saved.events), 'Invalid library activity.');
+  return saved;
+}
+// The desktop retains the complete ledger; phones receive only the recent
+// window. An incarnation survives edits, but a delete followed by a re-add is
+// a new addition even when its filename and bytes are identical.
+async function updateActivity(root, files, { complete = false, removed = [], pending, localRemovals = [] } = {}) {
+  const saved = await readActivity(root) || { version: 1, startedAt: Date.now(), current: [], events: [] };
+  const before = JSON.stringify(saved), current = new Map(saved.current.map(doc => [doc.name, doc]));
+  const absent = new Set(removed);
+  if (complete) for (const name of current.keys()) if (!files.some(doc => doc.name === name)) absent.add(name);
+  for (const name of absent) {
+    const doc = current.get(name); if (!doc) continue;
+    const { entryId, pendingDelete, ...document } = doc;
+    saved.events.push({ id: `delete:${entryId}`, kind: 'deleted', at: pendingDelete?.at || Date.now(),
+      ...(pendingDelete?.id ? { operationId: pendingDelete.id } : {}), document });
+    current.delete(name);
+  }
+  for (const file of files) {
+    const document = await activityDocument(root, file), prior = current.get(file.name);
+    if (prior) {
+      // A manifest observing the original still present cancels an interrupted
+      // deletion. A later retry can safely prepare a fresh intent.
+      const next = { ...document, entryId: prior.entryId, addedAt: prior.addedAt };
+      if (document.words === null && prior.sha256 === document.sha256) next.words = prior.words;
+      current.set(file.name, next);
+      const addition = saved.events.find(event => event.id === `add:${prior.entryId}`);
+      if (addition && addition.document.sha256 === next.sha256 && next.words !== null) addition.document.words = next.words;
+    } else {
+      const entryId = randomUUID(); current.set(file.name, { ...document, entryId });
+      saved.events.push({ id: `add:${entryId}`, kind: 'added', at: document.addedAt, document });
+    }
+  }
+  if (pending) {
+    const doc = current.get(pending.name);
+    check(doc, 'Missing document deletion record.');
+    doc.pendingDelete = { id: pending.id, at: Math.max(doc.addedAt, pending.at) };
+    if (pending.wordsdoc.words = pending.words;
+      const addition = saved.events.find(event => event.id === `add:${doc.entryId}`);
+      if (addition?.document.sha256 === doc.sha256) addition.document.words = pending.words;
+    }
+  }
+  for (const event of localRemovals) {
+    if (saved.events.some(item => item.operationId === event.id)) continue;
+    // Normal synced originals are recorded by libraryRemove, after unlink.
+    // This path preserves local imports deleted before they were ever uploaded.
+    if (current.has(event.document.name)) continue;
+    const known = saved.events.find(item => item.kind === 'deleted' && item.document.name === event.document.name
+      && item.document.sha256 === event.document.sha256 && Math.abs(item.document.addedAt - event.document.addedAt) < 1);
+    if (known) continue;
+    const document = event.document;
+    if (!saved.events.some(item => item.kind === 'added' && item.document.name === document.name
+      && Math.abs(item.at - document.addedAt) < 1)) {
+      saved.events.push({ id: `local-add:${event.id}`, kind: 'added', at: document.addedAt, document });
+    }
+    saved.events.push({ id: `local-delete:${event.id}`, operationId: event.id, kind: 'deleted', at: event.at, document });
+  }
+  // A PDF count may become available after its addition (or deletion). Keep
+  // unknowns explicit until a completed preparation for those exact bytes exists.
+  const counts = new Map();
+  for (const event of saved.events) if (event.at >= Date.now() - 15 * 86400000 && event.document.words === null && /\.pdf$/i.test(event.document.name)) {
+    const sha = event.document.sha256;
+    if (!counts.has(sha)) counts.set(sha, await preparedWordCount(root, sha).catch(() => null));
+    event.document.words = counts.get(sha);
+  }
+  saved.current = [...current.values()];
+  const next = JSON.stringify(saved);
+  if (before !== next || !await safeFile(activityPath(root))) {
+    check(Buffer.byteLength(next) <= 16 * 1024 * 1024, 'Library activity ledger is full.');
+    const temporary = activityPath(root) + '.' + randomUUID();
+    try { check(await exclusive(temporary, next)); await rename(temporary, activityPath(root)); }
+    finally { await unlink(temporary).catch(() => {}); }
+  }
+  return savedlibraryActivity({ removals = [] } = {}, options) {
+  const root = await rootDirectory(options);
+  check(Array.isArray(removals) && removals.length <= 1000, 'Invalid library activity.');
+  const localRemovals = removals.map(event => {
+    const doc = event?.document;
+    nameOf(doc?.name);
+    check(typeof event.id === 'string' && /^[a-zA-Z0-9:-]{1,100}$/.test(event.id)
+      && Number.isFinite(event.at) && event.at > 0 && event.at <= Date.now() + 60000
+      && Number.isFinite(doc.addedAt) && doc.addedAt >= 0 && doc.addedAt <= event.at
+      && (doc.sha256 === null || /^[a-f0-9]{64}$/.test(doc.sha256))
+      && (doc.words === null || Number.isSafeInteger(doc.words) && doc.words >= 0 && doc.words <= 100000000), 'Invalid library activity.');
+    return { id: event.id, at: event.at, document: { name: doc.name, sha256: doc.sha256, addedAt: doc.addedAt, words: doc.words } };
+  });
+  if (!await readActivity(root)) await libraryManifest({ reading: true }, options);
+  return locked(inventoryLock(root), async () => {
+    const prior = await readActivity(root), removed = [];
+    for (const doc of prior.current) if (doc.pendingDelete && !await safeFile(path.join(root, doc.name))) removed.push(doc.name);
+    const saved = await updateActivity(root, [], { removed, localRemovals });
+    return { version: 1, libraryId: await identity(root), startedAt: saved.startedAt,
+      events: saved.events.filter(event => event.at >= Date.now() - 15 * 86400000) };
+libraryIdentity(options) { return identity(await rootDirectory(options)); libraryManifest({ name: selected, reading = false } = {}, options) {
   if (selected !== undefined) nameOf(selected);
-  const root = await rootDirectory(options), id = await identity(root), files = [], skippedselected !== undefined ? [selected] : (await readdir(root)).sort()) {
+  const root = await rootDirectory(options), id = await identity(root), files = [], skipped = [];
+  return locked(inventoryLock(root), async () => {
+  for (const name of selected !== undefined ? [selected] : (await readdir(root)).sort()) {
     if (name.startsWith('.') || !/\.(md|markdown|txt|pdf)$/i.test(name)) continue;
     try {
       const doc = await documentAt(root, name); if (!doc) continue;
       await archive(root, doc);
       const file = metadata(doc);
-      if (reading && !/\.pdf$/i.test(name))doc.data.toString('utf8');
+      if (!/\.pdf$/i.test(name))doc.data.toString('utf8');
         file.title = ((!/\.txt$/i.test(name) && text.replace(/^\uFEFF/, '').match(/^#{1,6}\s+(.+?)\s*#*\s*$/m)?.[1]) || name.replace(/\.[^.]+$/, '')).slice(0, 2000);
         file.words = (text.match(/\S+/g) || []).length;
       }
       // Optional, small metadata only. Never start OCR or send whole prepared
       // books just to display the library's reading-time estimates.
-      if (reading && /\.pdf$/i.test(name)const words = await preparedWordCount(root, doc.sha256);
+      if (/\.pdf$/i.test(name)const words = await preparedWordCount(root, doc.sha256);
           if (words !== null) file.readingWords = words;
         } catch { /* Unavailable preparation must not block file sync. */ }
       }
@@ -148,7 +256,9 @@ const metadata = doc => ({ name: doc.name, bytes: doc.bytes, sha256: doc.sha256,
     } catch (error) { skipped.push({ name, reason: error.status ? error.message : 'Could not read this file.' }); }
   }
   await dateFiles(root, files, selected === undefined && skipped.length === 0);
-  return { version: 1, id, directory: root, files, skipped };
+  await updateActivity(root, files, { complete: selected === undefined && skipped.length === 0 });
+  return { version: 1, id, directory: root, files: reading ? files : files.map(({ title, words, readingWords, ...file }) => file), skipped };
+  });
 }
 async function uploadLocation(file, options) {
   file = descriptor(file); const root = await rootDirectory(options);
@@ -197,9 +307,9 @@ function expectHash(current, expected) {
   check(expected === null || /^[a-f0-9]{64}$/.test(expected), 'A previous checksum is required.');
   check((current?.sha256 || null) === expected, 'Document changed on the desktop. Sync again to keep both copies.', 409libraryCommit({ file, expected }, options) {
   const upload = await uploadLocation(file, options); file = upload.file;
-  return locked(path.join(upload.root, file.name), async () => {
+  return locked(inventoryLock(upload.root), async () => {
     const current = await documentAt(upload.root, file.name);
-    if (current) await dateFiles(upload.root, [current]);
+    if (current) { await dateFiles(upload.root, [current]); await updateActivity(upload.root, [current]); }
     if (current?.sha256 === file.sha256) return metadata(current); // Retry after a lost acknowledgement.
     expectHash(current, expected);
     const bytes = file.bytes ? await readSafe(upload.target) : Buffer.alloc(0);
@@ -211,18 +321,26 @@ function expectHash(current, expected) {
       expectHash(await documentAt(upload.root, file.name), expected);
       await rename(temporary, path.join(upload.root, file.name));
     } finally { await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
-    return metadata((await dateFiles(upload.root, [await documentAt(upload.root, file.name)]))[0]);
+    const added = (await dateFiles(upload.root, [await documentAt(upload.root, file.name)]))[0];
+    await updateActivity(upload.root, [added]);
+    return metadata(added);
 libraryRead({ name, sha256, offset = 0 }, options) {
   const root = await rootDirectory(options), doc = await documentAt(root, name);
   expectHash(doc, sha256); check(doc && Number.isSafeInteger(offset) && offset >= 0 && offset <= doc.bytes, 'Invalid download offset.');
   await archive(root, doc);
-  return { ...metadata(doc), offset, data: doc.data.subarray(offset, offset + LIBRARY_CHUNK_BYTES).toString('base64') }libraryRemove({ name, expected }, options) {
+  return { ...metadata(doc), offset, data: doc.data.subarray(offset, offset + LIBRARY_CHUNK_BYTES).toString('base64') }libraryRemove({ name, expected, operationId, deletedAt, readingWords }, options) {
   nameOf(name); const root = await rootDirectory(options);
-  return locked(path.join(root, name), async () => {
+  check(operationId === undefined || typeof operationId === 'string' && /^[a-zA-Z0-9:-]{1,100}$/.test(operationId), 'Invalid deletion identity.');
+  check(deletedAt === undefined || Number.isFinite(deletedAt) && deletedAt > 0 && deletedAt <= Date.now() + 60000, 'Invalid deletion date.');
+  check(readingWords === undefined || Number.isSafeInteger(readingWords) && readingWords >= 0 && readingWords <= 100000000, 'Invalid document word count.');
+  return locked(inventoryLock(root), async () => {
     const current = await documentAt(root, name);
-    if (!current) { await dateFiles(root, [], false, [name]); return { removed: true }; }
+    if (!current) { await updateActivity(root, [], { removed: [name] }); await dateFiles(root, [], false, [name]); return { removed: true }; }
     expectHash(current, expected); await archive(root, current);
+    await dateFiles(root, [current]);
+    await updateActivity(root, [current], { pending: { name, id: operationId || randomUUID(), at: deletedAt || Date.now(), words: readingWords } });
     expectHash(await documentAt(root, name), expected); await unlink(path.join(root, name));
+    await updateActivity(root, [], { removed: [name] });
     await dateFiles(root, [], false, [name]);
     return { removed: true };
   });
@@ -354,10 +472,13 @@ async function readPreparation(file, key, engine, version, offset, expectedHash)
   if ((await readdir(queue)).length < 64) await exclusive(path.join(queue, hash(key) + '.json'), Buffer.from(JSON.stringify({ name, key })));
   return { state: 'pending' };
 }LibrarySync(router, options = {}) {
+  router.get('/pageborne/library/activity'try { res.json(await libraryActivity({}, options)); }
+    catch {'Could not read library activity.' }); }
+  });
   router.get('/pageborne/library'try { res.json(await libraryManifest({ name: req.query.name, reading: req.query.reading === '1' }, options)); }
     catch {'Could not open the desktop library.' }); }
   });
-  for (const [route, ac{ status: libraryUploadStatus, chunk: libraryUploadChunk, commit: libraryCommit, read: libraryRead, remove: libraryRemove, preparation: libraryPreparation })) {
+  for (const [route, ac{ status: libraryUploadStatus, chunk: libraryUploadChunk, commit: libraryCommit, read: libraryRead, remove: libraryRemove, preparation: libraryPreparation, activity: libraryActivity })) {
     router.post(`/pageborne/library/${route}`  try { res.json(await action(req.body || {}, options)); }
       catch (error) { res.status(error.status || 400).json({ error: error.status ? error.message : 'Could not sync this document. Check desktop storage permissions.' }); }
     });

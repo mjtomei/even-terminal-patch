@@ -1,5 +1,12 @@
 # Changes
 
+## 0.2.9 — 2026-11-10
+
+- Retain addition and deletion dates and word counts in a durable library activity ledger.
+- Recover interrupted deletes, deduplicate retries, and distinguish re-additions from edits.
+- Sync offline-only deletions and provide recent activity through authenticated GET/POST library endpoints.
+- Reconstruct `0.8.1-shared.11` from the same pinned upstream archive.
+
 ## 0.2.8 — 2026-11-09
 
 - Expose the actual native Claude or Codex session model in optional conversation metadata; missing metadata does not block history.
